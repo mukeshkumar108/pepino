@@ -1,17 +1,20 @@
+// src/lib/pdf.ts
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { Invoice } from "./invoiceSchema";
 import { invoiceTotalsQ } from "./totals";
 
+// --- text helpers ---
 function wrapText(text: string, maxChars: number): string[] {
   const words = text.split(/\s+/);
   const lines: string[] = [];
   let line = "";
   for (const w of words) {
-    if ((line + (line ? " " : "") + w).length > maxChars) {
+    const candidate = line ? line + " " + w : w;
+    if (candidate.length > maxChars) {
       if (line) lines.push(line);
       line = w;
     } else {
-      line = line ? line + " " + w : w;
+      line = candidate;
     }
   }
   if (line) lines.push(line);
@@ -19,16 +22,18 @@ function wrapText(text: string, maxChars: number): string[] {
 }
 
 function splitParagraphs(s: string): string[] {
-  return s.split(/\r?\n\r?\n/); // blank line separates paragraphs
+  // blank line separates paragraphs
+  return s.split(/\r?\n\r?\n/);
 }
 
 function isBulletLine(s: string): boolean {
   return /^\s*([-*•]|\d+\.)\s+/.test(s);
 }
 
+// --- core PDF generation ---
 export async function generateInvoicePdf(inv: Invoice): Promise<Blob> {
   const pdf = await PDFDocument.create();
-  let page = pdf.addPage([595.28, 841.89]); // A4
+  let page = pdf.addPage([595.28, 841.89]); // A4 in points
   const { width } = page.getSize();
 
   const marginX = 40;
@@ -134,7 +139,6 @@ export async function generateInvoicePdf(inv: Invoice): Promise<Blob> {
     }
   }
 
-  // Terms (paragraphs or bullets)
   // Notes
   if (inv.notes && inv.notes.trim().length) {
     cursorY -= 10;
@@ -149,6 +153,7 @@ export async function generateInvoicePdf(inv: Invoice): Promise<Blob> {
     });
   }
 
+  // Terms (paragraphs or bullets)
   if (inv.terms && inv.terms.trim().length) {
     cursorY -= 10;
     drawText("Condiciones del servicio", left, cursorY, 12, true);
@@ -157,12 +162,16 @@ export async function generateInvoicePdf(inv: Invoice): Promise<Blob> {
     const paragraphs = splitParagraphs(inv.terms);
     paragraphs.forEach((para) => {
       newPageIfNeeded();
-      const rawLines = para.split(/\r?\n/).filter((l) => l.length || true);
+
+      const rawLines = para.split(/\r?\n/); // keep blanks, line-by-line
       const bulletMode = rawLines.some((l) => isBulletLine(l));
 
       if (bulletMode) {
         rawLines.forEach((l) => {
-          if (!l.trim()) return;
+          if (!l.trim()) {
+            cursorY -= 6; // small gap for blank line inside bullet block
+            return;
+          }
           const text = l.replace(/^\s*([-*•]|\d+\.)\s+/, "");
           const wrapped = wrapText(text, 88);
           // Bullet gutter
@@ -183,6 +192,7 @@ export async function generateInvoicePdf(inv: Invoice): Promise<Blob> {
           newPageIfNeeded();
         });
       }
+
       cursorY -= 6; // spacing between paragraphs
     });
   }
@@ -193,13 +203,13 @@ export async function generateInvoicePdf(inv: Invoice): Promise<Blob> {
   drawText("Firma: ________________________________", left, cursorY);
 
   const bytes = await pdf.save();
-  // return new Blob([bytes], { type: "application/pdf" }); // ❌ TS complains on some builds
 
-  // ✅ Use an ArrayBuffer slice (works in all TS/Next/Vercel setups)
+  // Use an ArrayBuffer slice for wide TS/Next/Vercel compatibility
   const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
   return new Blob([ab], { type: "application/pdf" });
 }
 
+// --- browser helpers ---
 export async function downloadInvoicePdf(inv: Invoice) {
   const blob = await generateInvoicePdf(inv);
   const url = URL.createObjectURL(blob);

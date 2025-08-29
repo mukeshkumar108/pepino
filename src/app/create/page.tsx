@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Invoice, exampleInvoice, LineItem, Group } from "@/lib/invoiceSchema";
 import { invoiceTotalsQ } from "@/lib/totals";
-import { downloadInvoicePdf, openInvoicePdf } from "@/lib/pdf";
 
 function uid(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
@@ -75,6 +74,15 @@ export default function CreateInvoicePage() {
       );
       return { ...v, groups };
     });
+  }
+
+  async function handleDownload() {
+    const { downloadInvoicePdf } = await import("@/lib/pdf");
+    await downloadInvoicePdf(inv);
+  }
+  async function handlePreview() {
+    const { openInvoicePdf } = await import("@/lib/pdf");
+    await openInvoicePdf(inv);
   }
   // local UI state for expanding details
   const [showDetails, setShowDetails] = useState(true);
@@ -417,20 +425,13 @@ export default function CreateInvoicePage() {
 
       {/* PDF */}
       <div className="flex gap-3">
-        <button
-          onClick={() => downloadInvoicePdf(inv)}
-          className="px-4 py-2 rounded bg-black text-white"
-        >
-          Descargar PDF
-        </button>
-        <button
-          onClick={() => openInvoicePdf(inv)}
-          className="px-4 py-2 rounded border"
-        >
-          Vista previa
-        </button>
-      </div>
-
+        <button onClick={handleDownload} className="px-4 py-2 rounded bg-black text-white">
+            Descargar PDF
+          </button>
+          <button onClick={handlePreview} className="px-4 py-2 rounded border">
+            Vista previa
+          </button>
+        </div>
     </div>
   );
 }
