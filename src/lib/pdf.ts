@@ -204,8 +204,9 @@ export async function generateInvoicePdf(inv: Invoice): Promise<Blob> {
 
   const bytes = await pdf.save();
 
-  // Use an ArrayBuffer slice for wide TS/Next/Vercel compatibility
-  const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  // ✅ Force into a clean ArrayBuffer so TS/Vercel don’t complain about SharedArrayBuffer
+  const ab = new ArrayBuffer(bytes.length);
+  new Uint8Array(ab).set(bytes);
   return new Blob([ab], { type: "application/pdf" });
 }
 
