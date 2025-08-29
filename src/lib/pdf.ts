@@ -193,7 +193,11 @@ export async function generateInvoicePdf(inv: Invoice): Promise<Blob> {
   drawText("Firma: ________________________________", left, cursorY);
 
   const bytes = await pdf.save();
-  return new Blob([bytes], { type: "application/pdf" });
+  // return new Blob([bytes], { type: "application/pdf" }); // ❌ TS complains on some builds
+
+  // ✅ Use an ArrayBuffer slice (works in all TS/Next/Vercel setups)
+  const ab = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+  return new Blob([ab], { type: "application/pdf" });
 }
 
 export async function downloadInvoicePdf(inv: Invoice) {
