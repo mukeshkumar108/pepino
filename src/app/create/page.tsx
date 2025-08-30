@@ -2,12 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { DndContext, DragEndEvent, closestCenter } from "@dnd-kit/core";
-import { SortableList, SortableItem, useDndSensors, DragHandle } from "@/components/dnd/Sortable";
+import { SortableList, SortableItem, useDndSensors } from "@/components/dnd/Sortable";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Collapsible } from "@/components/ui/Collapsible";
 import { Field } from "@/components/ui/Field";
-import { GripVertical, Trash2 } from "lucide-react";
 
 import { Invoice, exampleInvoice, LineItem, Group } from "@/lib/invoiceSchema";
 import { GroupCard } from "@/components/invoice/GroupCard";
@@ -23,7 +22,6 @@ export default function CreateInvoicePage() {
   const [inv, setInv] = useState<Invoice>(exampleInvoice);
   const { subtotal, tax, total } = useMemo(() => invoiceTotalsQ(inv), [inv]);
   const [quickText, setQuickText] = useState("");
-  const [showDetails, setShowDetails] = useState(true);
 
   // ---- PDF handlers (dynamic import keeps Vercel happy) ----
   async function handleDownload() {

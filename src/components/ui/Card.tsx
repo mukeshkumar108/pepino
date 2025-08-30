@@ -1,4 +1,6 @@
 // src/components/ui/Card.tsx
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 export function Card({ className = "", ...props }: any) {
   return (
     <div

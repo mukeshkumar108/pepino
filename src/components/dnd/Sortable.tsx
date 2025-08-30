@@ -1,5 +1,11 @@
 import React, { createContext, useContext, forwardRef } from "react";
-import { useSensor, useSensors, PointerSensor, KeyboardSensor } from "@dnd-kit/core";
+import {
+  useSensor,
+  useSensors,
+  PointerSensor,
+  KeyboardSensor,
+  type DraggableAttributes,
+} from "@dnd-kit/core";
 import {
   SortableContext,
   verticalListSortingStrategy,
@@ -8,8 +14,14 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
+// Minimal, rule-safe listener type (no `any`)
+type DragListeners = { [key: string]: (...args: unknown[]) => void };
+
 type HandleCtx =
-  | { attributes: Record<string, any>; listeners: Record<string, any> }
+  | {
+      attributes: DraggableAttributes;
+      listeners: DragListeners | undefined;
+    }
   | null;
 
 const SortableItemCtx = createContext<HandleCtx>(null);
@@ -17,7 +29,10 @@ const SortableItemCtx = createContext<HandleCtx>(null);
 export function SortableList({
   ids,
   children,
-}: { ids: string[]; children: React.ReactNode }) {
+}: {
+  ids: string[];
+  children: React.ReactNode;
+}) {
   return (
     <SortableContext items={ids} strategy={verticalListSortingStrategy}>
       {children}
@@ -28,7 +43,10 @@ export function SortableList({
 export function SortableItem({
   id,
   children,
-}: { id: string; children: React.ReactNode }) {
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id });
 
@@ -38,7 +56,7 @@ export function SortableItem({
   };
 
   return (
-    <SortableItemCtx.Provider value={{ attributes, listeners }}>
+    <SortableItemCtx.Provider value={{ attributes, listeners: listeners as DragListeners }}>
       <div ref={setNodeRef} style={style} className={isDragging ? "opacity-70" : undefined}>
         {children}
       </div>
@@ -46,7 +64,7 @@ export function SortableItem({
   );
 }
 
-// Make only-this-element the drag handle
+// Make only this element the drag handle
 export const DragHandle = forwardRef<HTMLButtonElement, React.ComponentProps<"button">>(
   function DragHandle({ className = "", children, ...rest }, ref) {
     const ctx = useContext(SortableItemCtx);
@@ -66,11 +84,11 @@ export const DragHandle = forwardRef<HTMLButtonElement, React.ComponentProps<"bu
   }
 );
 
-// ONE sensor for mouse + touch (works in DevTools + real phones)
+// ONE sensor for mouse + touch (works in DevTools + phones)
 export function useDndSensors(opts?: {
   pointer?: { delay?: number; tolerance?: number; distance?: number };
 }) {
-  // Choose EITHER delay/tolerance (long-press) OR distance (small move)
+  // Choose EITHER distance OR delay/tolerance
   const activationConstraint =
     opts?.pointer?.distance != null
       ? { distance: opts.pointer.distance }
