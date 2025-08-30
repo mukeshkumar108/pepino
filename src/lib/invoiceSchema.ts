@@ -34,12 +34,13 @@ export const Invoice = z.object({
     name: z.string(),
     contact: z.string().optional(),
     dpi: z.string().optional(),
+    address: z.string().optional(), // 👈 NEW (multi-line allowed)
   }),
   event: z
     .object({
       name: z.string().optional(),
       date: z.string().optional(),
-      location: z.string().optional(),
+      location: z.string().optional(), // already present; we’ll render multi-line
     })
     .optional(),
   groups: z.array(Group),
@@ -68,16 +69,16 @@ export const Invoice = z.object({
         .optional(),
     })
     .optional(),
-  terms: z.string().optional(), // << changed: free text
+  terms: z.string().optional(),
   notes: z.string().optional(),
 });
 export type Invoice = z.infer<typeof Invoice>;
 
-// Update the example to use a single string for terms
+// Optional: include empty strings if you like; can also omit
 export const exampleInvoice: Invoice = {
   id: "inv-demo-1",
   meta: { issuedAt: new Date().toISOString().slice(0, 10), locale: "es-GT" },
-  client: { name: "FAUSTO CASTILLO" },
+  client: { name: "FAUSTO CASTILLO", address: "" }, // 👈
   event: { name: "FERCO Z10", date: "2025-05-15", location: "Guatemala" },
   groups: [
     {
@@ -103,9 +104,6 @@ export const exampleInvoice: Invoice = {
     gtq: { bank: "BI", type: "MONETARIA", account: "1940035790", name: "ASHLEY AYALA CORDON" },
     usd:  { bank: "BI", type: "MONETARIA USD", account: "1940063082", name: "ASHLEY AYALA CORDON" },
   },
-  terms: [
-    "Precios más IVA / IMPUESTOS.",
-    "Para confirmar el servicio pagar 100% antes de iniciar.",
-  ].join("\n"), // << now one string with newlines
+  terms: ["Precios más IVA / IMPUESTOS.","Para confirmar el servicio pagar 100% antes de iniciar."].join("\n"),
   notes: "Propuesta según cambios y ajustes.",
 };

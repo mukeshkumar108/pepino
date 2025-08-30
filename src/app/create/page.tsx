@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback, useRef } from "react";
 import { 
   DndContext, 
   DragEndEvent,
@@ -22,24 +22,136 @@ import { GroupCard } from "@/components/invoice/GroupCard";
 import { invoiceTotalsQ } from "@/lib/totals";
 import { parseFreeText } from "@/lib/parse";
 
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+type Status = "draft" | "quote" | "invoice" | "paid";
+
+const STATUS_LABEL: Record<Status, string> = {
+  draft: "Borrador",
+  quote: "Propuesta",
+  invoice: "Factura",
+  paid: "Pagada",
+};
+
+const STATUS_CHIP: Record<Status, string> = {
+  draft:   "bg-neutral-100 text-neutral-800 border border-neutral-200",
+  quote:   "bg-blue-50 text-blue-700 border border-blue-200",
+  invoice: "bg-amber-50 text-amber-800 border border-amber-200",
+  paid:    "bg-green-50 text-green-700 border border-green-200",
+};
+
+function StatusChip({ s }: { s: Status }) {
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${STATUS_CHIP[s]}`}>
+      {s === "paid" ? "✅ " : null}
+      {s === "quote" ? "Propuesta" : s === "invoice" ? "Factura" : s === "draft" ? "Borrador" : "Pagada"}
+    </span>
+  );
+}
+
 function uid(prefix = "id") {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export default function CreateInvoicePage() {
-  const [inv, setInv] = useState<Invoice>({ ...exampleInvoice, groups: [] });
+function useDebounce<T extends unknown[]>(fn: (...args: T) => void, ms = 600) {
+  const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+  return useCallback((...args: T) => {
+    if (t.current) clearTimeout(t.current);
+    t.current = setTimeout(() => fn(...args), ms);
+  }, [fn, ms]);
+}
+
+export default function CreateInvoicePage({
+  initial,
+  invoiceId,
+  initialStatus,
+}: {
+  initial?: Invoice;
+  invoiceId?: string;
+  initialStatus?: Status;
+}) {
+  const [inv, setInv] = useState<Invoice>(initial ?? { ...exampleInvoice, groups: [] });
   const { subtotal, tax, total } = useMemo(() => invoiceTotalsQ(inv), [inv]);
   const [quickText, setQuickText] = useState("");
   const [autofocusItemId, setAutofocusItemId] = useState<string | undefined>(undefined);
+  const router = useRouter();
+  const [status, setStatus] = useState<Status>(initialStatus ?? "draft");
+
+    // autosave indicator + debounced save
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const recentlySaved = !!savedAt && Date.now() - savedAt < 1500;
+
+  const saveDebounced = useDebounce(async (next: Invoice) => {
+    if (!invoiceId) return;
+    await fetch(`/api/invoices/${invoiceId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: next, status }), // 👈 include status
+    });
+    setSavedAt(Date.now());
+  }, 700);
+
+  useEffect(() => {
+    saveDebounced(inv);
+  }, [inv, saveDebounced]);
+  
+  async function saveNow() {
+    if (!invoiceId) return;
+    await fetch(`/api/invoices/${invoiceId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: inv, status }),
+    });
+    setSavedAt(Date.now());
+  }
+
+  async function handleDelete() {
+    if (!invoiceId) return;
+    const ok = confirm("¿Eliminar esta factura? Esta acción no se puede deshacer.");
+    if (!ok) return;
+    const res = await fetch(`/api/invoices/${invoiceId}`, { method: "DELETE" });
+    if (res.ok) router.replace("/app");
+    else alert("No se pudo eliminar.");
+  }
+
+  async function handleDuplicate() {
+    if (!invoiceId) return;
+    const res = await fetch(`/api/invoices/${invoiceId}/duplicate`, { method: "POST" });
+    if (!res.ok) return alert("No se pudo duplicar.");
+    const { id } = await res.json();
+    router.replace(`/app/invoices/${id}`);
+  }
+
+  function onChangeStatus(next: Status) {
+    setStatus(next);
+    if (!invoiceId) return;
+    fetch(`/api/invoices/${invoiceId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: inv, status: next }), // pass the NEW status explicitly
+    })
+      .then(() => setSavedAt(Date.now()))
+      .catch(() => {/* no-op */});
+  }
+
 
   // ---- PDF handlers (dynamic import keeps Vercel happy) ----
   async function handleDownload() {
     const { downloadInvoicePdf } = await import("@/lib/pdf");
-    await downloadInvoicePdf(inv);
+    await downloadInvoicePdf(inv, {
+      title: STATUS_LABEL[status],
+      logoUrl: "/rosegold_logo-big--white.png",                // put a file in /public/logo.png
+      footerNote: inv.client.name ? `Cliente: ${inv.client.name}` : "",
+    });
   }
   async function handlePreview() {
     const { openInvoicePdf } = await import("@/lib/pdf");
-    await openInvoicePdf(inv);
+    await openInvoicePdf(inv, {
+      title: STATUS_LABEL[status],
+      logoUrl: "/rosegold_logo-big--white.png",
+      footerNote: inv.client.name ? `Cliente: ${inv.client.name}` : "",
+    });
   }
 
   // ---- client/meta helpers ----
@@ -200,6 +312,32 @@ export default function CreateInvoicePage() {
     <>
       <div className="mx-auto max-w-3xl p-4 pb-28 space-y-6">
         <h1 className="text-2xl font-semibold">Crear factura / propuesta</h1>
+        {/* Editor toolbar */}
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/app" className="text-sm underline">← Volver</Link>
+            <StatusChip s={status} />   {/* add this */}
+            <div className="text-xs opacity-70">
+              {invoiceId ? (recentlySaved ? "Guardado ✓" : "Guardando…") : "Borrador local"}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              className="border rounded px-2 py-1 text-sm"
+              value={status}
+              onChange={(e) => onChangeStatus(e.target.value as Status)}
+            >
+              <option value="draft">Borrador</option>
+              <option value="quote">Propuesta</option>
+              <option value="invoice">Factura</option>
+              <option value="paid">Pagada</option>
+            </select>
+            <button onClick={handleDuplicate} className="text-sm underline">Duplicar</button>
+            {status !== "paid" && (
+              <button onClick={handleDelete} className="text-sm underline text-red-600">Eliminar</button>
+            )}
+          </div>
+        </div>
 
         {/* Client + Event */}
         <Card className="p-3 space-y-3">
@@ -211,15 +349,28 @@ export default function CreateInvoicePage() {
               placeholder="Nombre del cliente"
             />
           </Field>
+          <Field label="Dirección del cliente (opcional)">
+            <textarea
+              className="w-full border rounded p-3 min-h-[72px]"
+              value={inv.client.address ?? ""}
+              onChange={(e) =>
+                setInv((v) => ({ ...v, client: { ...v.client, address: e.target.value } }))
+              }
+              placeholder={`Calle 123
+          Colonia Centro
+          Ciudad, País`}
+            />
+          </Field>
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="Evento">
+            <Field label="Evento / Título">
               <input
                 className="w-full border rounded p-3 h-11"
                 value={inv.event?.name || ""}
                 onChange={(e) =>
                   setInv((v) => ({ ...v, event: { ...v.event, name: e.target.value } }))
                 }
-                placeholder="Nombre del evento"
+                placeholder="p.ej. Boda García — catering"
               />
             </Field>
             <Field label="Fecha">
@@ -232,14 +383,16 @@ export default function CreateInvoicePage() {
                 }
               />
             </Field>
-            <Field label="Lugar">
-              <input
-                className="w-full border rounded p-3 h-11"
+            <Field label="Dirección / Lugar">
+              <textarea
+                className="w-full border rounded p-3 min-h-[72px]"
                 value={inv.event?.location || ""}
                 onChange={(e) =>
                   setInv((v) => ({ ...v, event: { ...v.event, location: e.target.value } }))
                 }
-                placeholder="Ciudad / Dirección"
+                placeholder={`Calle 123
+                Colonia Centro
+                Ciudad, País`}
               />
             </Field>
           </div>
@@ -537,10 +690,18 @@ Luces 1 x 500`}
       </div>
 
       {/* Sticky action bar */}
-      <div className="fixed inset-x-0 bottom-0 z-20 bg-white/95 dark:bg-neutral-950/80 backdrop-blur border-t border-neutral-200 dark:border-neutral-800">
-        <div className="mx-auto max-w-3xl px-3 py-2 flex gap-2">
-          <Button variant="secondary" className="flex-1" onClick={handlePreview}>Vista previa</Button>
-          <Button className="flex-1" onClick={handleDownload}>Descargar</Button>
+      <div className="fixed inset-x-0 bottom-0 z-20 bg-white border-t border-neutral-200">
+        <div className="mx-auto max-w-3xl px-3 py-2 flex items-center gap-2">
+          <Link href="/app" className="border rounded px-3 py-2">Listo</Link>
+          {invoiceId && (
+            <button onClick={saveNow} className="text-xs underline opacity-80 hover:opacity-100">
+              Guardar ahora
+            </button>
+          )}
+          <div className="ml-auto flex gap-2">
+            <Button variant="secondary" onClick={handlePreview}>Vista previa</Button>
+            <Button onClick={handleDownload}>Descargar</Button>
+          </div>
         </div>
       </div>
     </>

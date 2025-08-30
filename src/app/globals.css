@@ -3,16 +3,74 @@
 /* Force light */
 :root {
   color-scheme: light;
-  --background: #f7f7f7; /* soft light background */
-  --foreground: #111827; /* neutral-900 */
+}
+
+/* Palette (light) */
+:root {
+  --page: #f6f7fb;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+
+  --group-bg: #eef2ff;
+  --group-ring: #c7d2fe;
+
+  --chip-bg: #ffffff;
+  --chip-ring: #e5e7eb;
+
+  --accent: #4f46e5;
+  --accent-foreground: #ffffff;
+
+  --danger-fg: #b91c1c;
+  --danger-bg: #fef2f2;
+}
+
+.dark {
+  --page: #0b0d11;
+  --surface: #0b1020;
+  --card: #0b1020;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+
+  --group-bg: #0f1224;
+  --group-ring: #1f2944;
+
+  --chip-bg: #0b1020;
+  --chip-ring: #1f2937;
+
+  --accent: #6366f1;
+  --accent-foreground: #0b1020;
+
+  --danger-fg: #f87171;
+  --danger-bg: #2b0d0f;
 }
 
 /* Fill page */
 html, body { height: 100%; }
+
+/* Soft top glow */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 22vh;
+  pointer-events: none;
+  background: radial-gradient(60% 40% at 50% 0%,
+              rgba(52, 95, 246, 0.06), transparent 60%);
+}
+
+/* Base typography with Geist */
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, Helvetica, sans-serif;
+  background: var(--page); /* keep this aligned with the Tailwind bg on <body> */
+  color: var(--text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+               Roboto, Inter, Arial, "Helvetica Neue", Helvetica, sans-serif;
+}
+
+code, kbd, samp, pre {
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+               Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
 /* Polished defaults for form controls */
