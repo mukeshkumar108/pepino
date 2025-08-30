@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DndContext, DragEndEvent, closestCenter } from "@dnd-kit/core";
+import { 
+  DndContext, 
+  DragEndEvent,
+  DragStartEvent,
+  DragOverlay, 
+  closestCenter,
+  MeasuringStrategy
+ } from "@dnd-kit/core";
+import { restrictToVerticalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers";
 import { SortableList, SortableItem, useDndSensors } from "@/components/dnd/Sortable";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -19,9 +27,10 @@ function uid(prefix = "id") {
 }
 
 export default function CreateInvoicePage() {
-  const [inv, setInv] = useState<Invoice>(exampleInvoice);
+  const [inv, setInv] = useState<Invoice>({ ...exampleInvoice, groups: [] });
   const { subtotal, tax, total } = useMemo(() => invoiceTotalsQ(inv), [inv]);
   const [quickText, setQuickText] = useState("");
+  const [autofocusItemId, setAutofocusItemId] = useState<string | undefined>(undefined);
 
   // ---- PDF handlers (dynamic import keeps Vercel happy) ----
   async function handleDownload() {
@@ -58,8 +67,9 @@ export default function CreateInvoicePage() {
 
   // ---- items CRUD ----
   function addItem(groupIdx: number) {
+    const id = uid("it");
     const newItem: LineItem = {
-      id: uid("it"),
+      id,
       qty: 1,
       desc: "Nuevo ítem",
       unit: { amount: 0, currency: "GTQ" },
@@ -70,6 +80,7 @@ export default function CreateInvoicePage() {
       );
       return { ...v, groups };
     });
+    setAutofocusItemId(id); // NEW
   }
   function updateItem(groupIdx: number, itemIdx: number, patch: Partial<LineItem>) {
     setInv((v) => {
@@ -121,13 +132,22 @@ export default function CreateInvoicePage() {
     setQuickText("");
   }
 
-  // ---- Drag & Drop wiring ----
-  const sensors = useDndSensors({
-    pointer: { delay: 220, tolerance: 8 },
-  });
+  // ---- Drag & Drop wiring (fast groups on mobile) ----
+  // Use a small movement distance to start drag (no long-press).
+  const sensors = useDndSensors({ pointer: { distance: 4 } });
+
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+
+  function onDragStart(e: DragStartEvent) {
+    const a = String(e.active.id);
+    if (inv.groups.some((g) => g.id === a)) {
+      setActiveGroupId(a);
+    }
+  }
 
   function onDragEnd(e: DragEndEvent) {
     const { active, over } = e;
+    setActiveGroupId(null);
     if (!over || active.id === over.id) return;
 
     // 1) group ↔ group
@@ -169,6 +189,12 @@ export default function CreateInvoicePage() {
       }
     }
   }
+
+  const hasItems = useMemo(
+    () => inv.groups.some((g) => g.items.length > 0),
+    [inv.groups]
+  );
+
 
   return (
     <>
@@ -223,6 +249,7 @@ export default function CreateInvoicePage() {
         <Card className="p-3 space-y-3">
           <Field label="Texto libre (opcional)">
             <textarea
+              id="magic-input" 
               className="w-full border rounded p-3 min-h-[120px]"
               placeholder={`Ejemplos:
 Mobiliario:
@@ -244,55 +271,99 @@ Luces 1 x 500`}
         {/* Groups + Items with DnD */}
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-medium">Secciones / Grupos</h2>
-          <Button variant="primary" onClick={addGroup}>
-            + Añadir grupo
-          </Button>
+          <Button variant="primary" onClick={addGroup}>+ Añadir grupo</Button>
         </div>
 
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <SortableList ids={inv.groups.map((g) => g.id)}>
-            {inv.groups.map((g, gi) => (
-              <SortableItem key={g.id} id={g.id}>
-                <GroupCard
-                  group={g}
-                  groupIndex={gi}
-                  onRename={renameGroup}
-                  onRemoveGroup={removeGroup}
-                  onAddItem={addItem}
-                  onUpdateItem={updateItem}
-                  onRemoveItem={removeItem}
-                />
-              </SortableItem>
-            ))}
-          </SortableList>
-        </DndContext>
+        {inv.groups.length === 0 ? (
+          <Card className="p-6 text-center space-y-3 bg-[var(--card)] text-[var(--text)]">
+            <h3 className="text-base font-semibold">Sin grupos aún</h3>
+            <p className="text-sm text-[var(--muted)]">
+              Añade tu primer grupo o pega texto en “Texto libre” y conviértelo en ítems.
+            </p>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={addGroup}>Añadir grupo</Button>
+              <Button
+                variant="secondary"
+                onClick={() => document.getElementById("magic-input")?.scrollIntoView({ behavior: "smooth" })}
+              >
+                Usar texto libre
+              </Button>
+            </div>
+          </Card>
+        ) : (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+            modifiers={[restrictToVerticalAxis, restrictToWindowEdges]}
+          >
+            <SortableList ids={inv.groups.map((g) => g.id)}>
+              {inv.groups.map((g, gi) => (
+                <SortableItem key={g.id} id={g.id}>
+                  <GroupCard
+                    group={g}
+                    groupIndex={gi}
+                    onRename={renameGroup}
+                    onRemoveGroup={removeGroup}
+                    onAddItem={addItem}
+                    onUpdateItem={updateItem}
+                    onRemoveItem={removeItem}
+                    autofocusId={autofocusItemId}
+                  />
+                </SortableItem>
+              ))}
+            </SortableList>
+
+            {/* 👇 DragOverlay must be inside DndContext */}
+            <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" }}>
+              {activeGroupId ? (
+                <Card className="p-3 pointer-events-none shadow-lg border border-[var(--chip-ring)] bg-[var(--card)]">
+                  <div className="flex items-center gap-2">
+                    <div className="h-5 w-5 rounded bg-[var(--chip-ring)]/60" />
+                    <div className="font-medium">
+                      {inv.groups.find((x) => x.id === activeGroupId)?.title ?? "Grupo"}
+                    </div>
+                    <div className="ml-auto text-sm text-[var(--muted)]">
+                      {(inv.groups.find((x) => x.id === activeGroupId)?.items.length ?? 0)} ítems
+                    </div>
+                  </div>
+                </Card>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        )}    
+
+
 
         {/* Totals + quick tax */}
-        <Card className="p-3 space-y-2">
-          <div className="text-right">
-            SUBTOTAL: <strong>Q {subtotal.toFixed(2)}</strong>
-          </div>
-          <div className="text-right">
-            IMPUESTOS ({(inv.tax.rate * 100).toFixed(0)}%): <strong>Q {tax.toFixed(2)}</strong>
-          </div>
-          <div className="text-right text-lg">
-            TOTAL: <strong>Q {total.toFixed(2)}</strong>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setInv((v) => ({ ...v, tax: { rate: 0 } }))}>
-              IVA 0%
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => setInv((v) => ({ ...v, tax: { rate: 0.12 } }))}
-            >
-              IVA 12%
-            </Button>
-          </div>
-        </Card>
-
+        {hasItems && (
+          <Card className="p-3 space-y-2">
+            <div className="text-right">
+              SUBTOTAL: <strong>Q {subtotal.toFixed(2)}</strong>
+            </div>
+            <div className="text-right">
+              IMPUESTOS ({(inv.tax.rate * 100).toFixed(0)}%): <strong>Q {tax.toFixed(2)}</strong>
+            </div>
+            <div className="text-right text-lg">
+              TOTAL: <strong>Q {total.toFixed(2)}</strong>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setInv((v) => ({ ...v, tax: { rate: 0 } }))}>
+                IVA 0%
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => setInv((v) => ({ ...v, tax: { rate: 0.12 } }))}
+              >
+                IVA 12%
+              </Button>
+            </div>
+          </Card>
+        )}
         {/* Details / Terms / Bank */}
-        <Collapsible title="Más detalles" defaultOpen>
+        <Collapsible title="Más detalles" defaultOpen={false}>
           <Card className="p-3 space-y-4">
             {/* Terms */}
             <Field label="Condiciones del servicio">
