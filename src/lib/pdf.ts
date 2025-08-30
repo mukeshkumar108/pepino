@@ -1,5 +1,6 @@
 // src/lib/pdf.ts
-import { PDFDocument, StandardFonts, rgb, type PDFPage } from "pdf-lib";
+import fontkit from "@pdf-lib/fontkit";
+import { PDFDocument, rgb, type PDFPage } from "pdf-lib";
 import type { Invoice } from "./invoiceSchema";
 import { invoiceTotalsQ } from "./totals";
 
@@ -14,6 +15,12 @@ export type PdfOptions = {
   footerNote?: string;
   /** Header bar color (defaults to #161616) */
   headerColorHex?: string;
+  itemsHeading?: string;   // heading above the items table
+  signerName?: string;     // printed under signature line (optional)
+  signerTitle?: string;    // e.g. company name / role (optional)
+  signatureUrl?: string;         // e.g. "/signature.png"
+  signatureDataUrl?: string;     // data: URL if you have it in memory
+  signaturePrintedName?: string; // e.g. "DI Ashley Ayala"
 };
 
 // --- tiny utils ---
@@ -75,21 +82,6 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
   const contentTopY = pageHeight - headerHeight - 20;  // start below header
   const contentMinY = 80 + footerHeight;               // keep above footer
 
-  const font = await pdf.embedFont(StandardFonts.Helvetica);
-  const fontBold = await pdf.embedFont(StandardFonts.HelveticaBold);
-
-  const drawText = (
-    page: PDFPage,
-    text: string,
-    x: number,
-    y: number,
-    size = 10,
-    bold = false,
-    color = rgb(0, 0, 0)
-  ) => {
-    page.drawText(text ?? "", { x, y, size, font: bold ? fontBold : font, color });
-  };
-
   // Try to embed a logo if provided
   async function tryEmbedLogo() {
     try {
@@ -120,10 +112,97 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
       return null;
     }
   }
-
   const logo = await tryEmbedLogo();
-  const headerColor = hexToRgb(opts.headerColorHex ?? "#161616");
 
+  //Embed signature if provided
+  async function tryEmbedSignature() {
+    try {
+      let bytes: Uint8Array | null = null;
+      if (opts.signatureDataUrl) {
+        // reuse your existing dataUrl -> bytes util
+        bytes = dataUrlToBytes(opts.signatureDataUrl);
+      } else if (opts.signatureUrl) {
+        const res = await fetch(opts.signatureUrl);
+        const ab = await res.arrayBuffer();
+        bytes = new Uint8Array(ab);
+      }
+      if (!bytes) return null;
+      try {
+        const img = await pdf.embedPng(bytes);
+        return { img, width: img.width, height: img.height };
+      } catch {
+        const img = await pdf.embedJpg(bytes);
+        return { img, width: img.width, height: img.height };
+      }
+    } catch {
+      return null;
+    }
+  }
+  const signature = await tryEmbedSignature();
+
+  const headerColor = hexToRgb(opts.headerColorHex ?? "#161616");
+  const lineColor = rgb(0.85, 0.86, 0.90);
+  
+  // Use Poppins for the PDF only
+  pdf.registerFontkit(fontkit);
+
+  async function fetchFont(path: string): Promise<Uint8Array | null> {
+    try {
+      const res = await fetch(path);
+      if (!res.ok) return null;
+      const ab = await res.arrayBuffer();
+      return new Uint8Array(ab);
+    } catch {
+      return null;
+    }
+  }
+
+  const poppinsRegularBytes = await fetchFont("/fonts/Poppins-Regular.ttf");
+  const poppinsMediumBytes  = await fetchFont("/fonts/Poppins-Medium.ttf");
+  const poppinsSemiBytes    = await fetchFont("/fonts/Poppins-SemiBold.ttf"); // optional
+
+  const fontRegular = poppinsRegularBytes ? await pdf.embedFont(poppinsRegularBytes, { subset: true }) : undefined;
+  const fontMedium  = poppinsMediumBytes  ? await pdf.embedFont(poppinsMediumBytes,  { subset: true }) : fontRegular;
+  const fontSemi    = poppinsSemiBytes    ? await pdf.embedFont(poppinsSemiBytes,    { subset: true }) : fontMedium;
+
+  // drop-in replacement for your old drawText() that supported bold=true/false
+  function drawText(
+    page: PDFPage,
+    text: string,
+    x: number,
+    y: number,
+    size = 10,
+    bold = false,
+    color = rgb(0, 0, 0)
+  ) {
+    const f = bold ? (fontSemi || fontMedium || fontRegular) : (fontRegular || fontMedium || fontSemi);
+    page.drawText(text ?? "", { x, y, size, font: f!, color });
+  }
+  // Load a font that includes accented chars (not all do)
+  // Helpers for measuring and right-aligning text
+  const pickFont = (bold = false) =>
+    (bold ? (fontSemi || fontMedium || fontRegular) : (fontRegular || fontMedium || fontSemi))!;
+
+  function measure(text: string, size: number, bold = false) {
+    const f = pickFont(bold);
+    return f.widthOfTextAtSize(text ?? "", size);
+  }
+
+  function drawRight(
+    page: PDFPage,
+    text: string,
+    rightX: number,
+    y: number,
+    size = 10,
+    bold = false,
+    color = rgb(0, 0, 0)
+  ) {
+    const f = pickFont(bold);
+    const w = measure(text, size, bold);
+    page.drawText(text ?? "", { x: rightX - w, y, size, font: f, color });
+  }
+
+  
   function drawHeader(page: PDFPage) {
     // bar
     page.drawRectangle({
@@ -251,16 +330,49 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
 
   cursorY = Math.min(yClient, yEvent) - 8;
 
+  // Divider + section heading (extra breathing room + larger title)
+  page.drawRectangle({
+    x: left,
+    y: cursorY - 6,
+    width: right - left,
+    height: 0.8,
+    color: lineColor,
+  });
+
+  // generous spacing BEFORE the heading (a full line break feel)
+  const headingSize = 20;        // bigger title
+  const beforeHeadingGap = 32;   // space from divider to heading baseline
+  const afterHeadingGap  = 24;   // space after heading before first group
+
+  cursorY -= beforeHeadingGap;
+
+  // not bold, but large; change `false` -> `true` if you want it semi-bold
+  drawText(page, opts.itemsHeading ?? "Detalle / Ítems", left, cursorY, headingSize, false);
+
+  // generous spacing AFTER the heading (so first group isn't flush)
+  cursorY -= afterHeadingGap;
+
+
   // Groups / items
   inv.groups.forEach((g) => {
     newPageIfNeeded();
     drawText(page, g.title, left, cursorY, 12, true);
     cursorY -= 16;
 
-    drawText(page, "CANT", left, cursorY, 10, true);
-    drawText(page, "Descripción", left + 60, cursorY, 10, true);
-    drawText(page, "Precio U.", right - 150, cursorY, 10, true);
-    drawText(page, "Total", right - 70, cursorY, 10, true);
+    // Header band for readability
+    const headerY = cursorY;
+    page.drawRectangle({
+      x: left,
+      y: headerY - 2,
+      width: right - left,
+      height: 16,
+      color: rgb(0.96, 0.97, 1.0), // very light indigo-ish
+    });
+
+    drawText(page, "CANT", left, headerY, 10, true);
+    drawText(page, "Descripción", left + 60, headerY, 10, true);
+    drawText(page, "Precio U.", right - 150, headerY, 10, true);
+    drawText(page, "Total", right - 70, headerY, 10, true);
     cursorY -= 14;
 
     g.items.forEach((it) => {
@@ -290,23 +402,67 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
     cursorY -= 8;
   });
 
+  // Divider before totals (after the items list)
+  newPageIfNeeded();
+  page.drawRectangle({
+    x: left,
+    y: cursorY - 6,
+    width: right - left,
+    height: 0.8,
+    color: lineColor,
+  });
+  cursorY -= 12; // spacing after divider
+
   // Totals
   const { subtotal, tax, total } = invoiceTotalsQ(inv);
+
+  // Build strings
+  const subLabel = "SUBTOTAL";
+  const taxPct   = Math.round((inv.tax?.rate ?? 0) * 100);
+  const taxLabel = `IMPUESTOS (${taxPct}%)`;
+  const totLabel = "TOTAL";
+
+  const subAmt = `Q ${subtotal.toFixed(2)}`;
+  const taxAmt = `Q ${tax.toFixed(2)}`;
+  const totAmt = `Q ${total.toFixed(2)}`;
+
+  // Measure to reserve enough room for the widest amount
+  const wSub = measure(subAmt, 10, false);
+  const wTax = measure(taxAmt, 10, false);
+  const wTot = measure(totAmt, 12, true);
+  const wAmtMax = Math.max(wSub, wTax, wTot);
+
+  // Columns: amounts flush-right; labels end to the left with a safe gap
+  const amountRight = right;
+  const gap = 16;
+  const labelRight = amountRight - wAmtMax - gap;
+
   cursorY -= 6;
-  drawText(page, "SUBTOTAL", right - 150, cursorY, 10, true);
-  drawText(page, `Q ${subtotal.toFixed(2)}`, right - 70, cursorY);
+
+  drawRight(page, subLabel, labelRight, cursorY, 10, true);
+  drawRight(page, subAmt,   amountRight, cursorY, 10, false);
   cursorY -= 14;
-  drawText(page, "IMPUESTOS", right - 150, cursorY, 10, true);
-  drawText(page, `Q ${tax.toFixed(2)}`, right - 70, cursorY);
-  cursorY -= 16;
-  drawText(page, "TOTAL", right - 150, cursorY, 12, true);
-  drawText(page, `Q ${total.toFixed(2)}`, right - 70, cursorY, 12, true);
+
+  drawRight(page, taxLabel, labelRight, cursorY, 10, true);
+  drawRight(page, taxAmt,   amountRight, cursorY, 10, false);
   cursorY -= 16;
 
-  if (inv.secondaryCurrency?.rateNote) {
-    drawText(page, inv.secondaryCurrency.rateNote, right - 200, cursorY);
-    cursorY -= 14;
-  }
+  drawRight(page, totLabel, labelRight, cursorY, 12, true);
+  drawRight(page, totAmt,   amountRight, cursorY, 12, true);
+  cursorY -= 16;
+
+  // Divider after totals (with spacing before & after)
+  newPageIfNeeded();
+  cursorY -= 8; // spacing BEFORE divider
+  page.drawRectangle({
+    x: left,
+    y: cursorY - 6,
+    width: right - left,
+    height: 0.8,
+    color: lineColor,
+  });
+  cursorY -= 12; // spacing AFTER divider
+
 
   // Bank details
   if (inv.bank?.gtq || inv.bank?.usd) {
@@ -388,11 +544,37 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
     });
   }
 
-  // Signature
-  cursorY -= 10;
+  // Before the signature block
+  newPageIfNeeded();
+
+  // ===== Client signature (space for handwriting)
+  cursorY -= 14;
   drawText(page, "Confirmación de presupuesto", left, cursorY, 12, true);
+  cursorY -= 12;
+
   cursorY -= 16;
   drawText(page, "Firma: ________________________________", left, cursorY);
+  cursorY -= 36;
+
+  // If near the bottom, make sure Ashley's signature doesn't get chopped
+  newPageIfNeeded();
+
+  // ===== Ashley's signature/stamp
+  if (signature) {
+    const maxH = 63; // was 42 — now 1.5x
+    const ratio = signature.width / signature.height;
+    const h = maxH;
+    const w = h * ratio;
+    const x = left;
+    const y = cursorY - h + 8;
+    page.drawImage(signature.img, { x, y, width: w, height: h });
+    cursorY = y - 10; // a touch more room under the image
+  }
+
+  if (opts.signaturePrintedName) {
+    drawText(page, opts.signaturePrintedName, left, cursorY, 9, false, rgb(0.35, 0.35, 0.35));
+    cursorY -= 8;
+  }
 
   // Footer on every page
   const pages = pdf.getPages();

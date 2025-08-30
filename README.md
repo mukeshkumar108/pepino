@@ -1,42 +1,32 @@
-# Ashley Invoices — Starter Pack (Tailwind v4 minimal)
+# Pepino — Invoices & Proposals 
 
-This version assumes Tailwind v4 (zero‑config).
+Tiny web app to create beautiful proposals/invoices fast, then export pixel-perfect PDFs with Ashley’s branding.
 
-## 0) Scaffold app
+Live: https://pepino.vercel.app
 
-```bash
-npx create-next-app@latest ashley-invoices --ts --eslint --src-dir --app --use-npm --yes
-cd ashley-invoices
-```
+## ✨ Features
 
-## 1) Install dependencies
+- Login via Supabase (magic link & password supported)
+- Invoice statuses with chips: Draft / Proposal / Invoice / Paid
+- Client + Event details (name, address, date, location)
+- Groups & line items with **drag & drop** (dnd-kit)
+- “Magic input” → paste free text, auto-parse into items
+- Quick tax presets: **0% / 5% / 17%**
+- Autosave, duplicate, delete
+- **PDF export** (pdf-lib):
+  - Branded header bar + logo
+  - Poppins font (embedded, PDF-only)
+  - Large “Detalle / Ítems” section heading
+  - Clear dividers & spacing, right-aligned totals
+  - Optional footer note, client signature line
+  - Ashley’s stamp/signature image + printed name
+- Default Spanish terms (one-click insert)
 
-```bash
-npm i @react-pdf/renderer zod tailwindcss@latest
-```
+## 🧰 Tech Stack
 
-Edit **src/app/globals.css** and add:
-```css
-@import "tailwindcss";
-```
-
-That's all for Tailwind. 🎉
-
-## 2) Copy these files into your project
-
-- `src/lib/invoiceSchema.ts`
-- `src/lib/totals.ts`
-- `src/pdf/InvoicePDF.tsx`
-- `src/app/create/page.tsx`
-- `supabase.sql` (optional later)
-
-## 3) Run locally
-
-```bash
-npm run dev -p 3000
-# open http://localhost:3000/create
-```
-
-## 4) Optional Supabase
-
-Same as before — use `supabase.sql` when ready for persistence/auth.
+- Next.js 15 (App Router) + TypeScript
+- Tailwind CSS (utility classes in `globals.css`)
+- Supabase Auth (SSR cookies via route handler)
+- pdf-lib (+ fontkit) for custom PDFs
+- @dnd-kit for drag & drop
+- Geist (UI font), **Poppins** (PDF font)

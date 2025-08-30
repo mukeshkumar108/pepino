@@ -25,6 +25,8 @@ import { parseFreeText } from "@/lib/parse";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { DEFAULT_TERMS } from "@/lib/defaults";
+
 type Status = "draft" | "quote" | "invoice" | "paid";
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -40,6 +42,8 @@ const STATUS_CHIP: Record<Status, string> = {
   invoice: "bg-amber-50 text-amber-800 border border-amber-200",
   paid:    "bg-green-50 text-green-700 border border-green-200",
 };
+
+const TAX_PRESETS = [0, 0.05, 0.17];
 
 function StatusChip({ s }: { s: Status }) {
   return (
@@ -135,7 +139,6 @@ export default function CreateInvoicePage({
       .catch(() => {/* no-op */});
   }
 
-
   // ---- PDF handlers (dynamic import keeps Vercel happy) ----
   async function handleDownload() {
     const { downloadInvoicePdf } = await import("@/lib/pdf");
@@ -143,6 +146,8 @@ export default function CreateInvoicePage({
       title: STATUS_LABEL[status],
       logoUrl: "/rosegold_logo-big--white.png",                // put a file in /public/logo.png
       footerNote: inv.client.name ? `Cliente: ${inv.client.name}` : "",
+      signatureUrl: "/signature.png",          // <- put Ashley’s stamp in /public/signature.png
+      signaturePrintedName: "DI Ashley Ayala", // <- or preferred text
     });
   }
   async function handlePreview() {
@@ -151,6 +156,8 @@ export default function CreateInvoicePage({
       title: STATUS_LABEL[status],
       logoUrl: "/rosegold_logo-big--white.png",
       footerNote: inv.client.name ? `Cliente: ${inv.client.name}` : "",
+      signatureUrl: "/signature.png",          // <- put Ashley’s stamp in /public/signature.png
+      signaturePrintedName: "DI Ashley Ayala", // <- or preferred text
     });
   }
 
@@ -503,15 +510,16 @@ Luces 1 x 500`}
               TOTAL: <strong>Q {total.toFixed(2)}</strong>
             </div>
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="secondary" onClick={() => setInv((v) => ({ ...v, tax: { rate: 0 } }))}>
-                IVA 0%
-              </Button>
-              <Button
-                variant="secondary"
-                onClick={() => setInv((v) => ({ ...v, tax: { rate: 0.12 } }))}
-              >
-                IVA 12%
-              </Button>
+              {TAX_PRESETS.map((r) => (
+                <Button
+                  key={r}
+                  variant={inv.tax.rate === r ? "primary" : "secondary"}
+                  onClick={() => setInv((v) => ({ ...v, tax: { rate: r } }))}
+                  title={`IVA ${Math.round(r * 100)}%`}
+                >
+                  IVA {Math.round(r * 100)}%
+                </Button>
+              ))}
             </div>
           </Card>
         )}
@@ -520,6 +528,15 @@ Luces 1 x 500`}
           <Card className="p-3 space-y-4">
             {/* Terms */}
             <Field label="Condiciones del servicio">
+              <div className="flex justify-end mb-1">
+                <button
+                  type="button"
+                  className="text-xs underline"
+                  onClick={() => setInv(v => ({ ...v, terms: DEFAULT_TERMS }))}
+                >
+                  Usar términos estándar
+                </button>
+              </div>
               <textarea
                 className="w-full border rounded p-3 min-h-[140px]"
                 placeholder="Puedes escribir párrafos o bullets (líneas que empiecen con - o •)."

@@ -1,11 +1,24 @@
+// src/app/auth/set/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
-export async function POST(req: Request) {
-  const { access_token, refresh_token } = await req.json().catch(() => ({}));
+type SetBody = {
+  access_token?: string;
+  refresh_token?: string;
+};
 
-  const cookieStore = await cookies(); // important
+export async function POST(req: Request) {
+  // Parse body without `any`
+  let body: SetBody = {};
+  try {
+    body = (await req.json()) as SetBody;
+  } catch {
+    body = {};
+  }
+
+  // In route handlers you can await cookies() and write safely
+  const cookieStore = await cookies();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,17 +26,27 @@ export async function POST(req: Request) {
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
-        setAll: (cookiesToSet) => {
+        // Type the setter using the cookieStore.set signature
+        setAll: (
+          cookiesToSet: {
+            name: string;
+            value: string;
+            options: Parameters<typeof cookieStore.set>[2];
+          }[]
+        ) => {
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set({ name, value, ...options });
+            cookieStore.set(name, value, options);
           });
         },
       },
     }
   );
 
-  if (access_token && refresh_token) {
-    await supabase.auth.setSession({ access_token, refresh_token });
+  if (body.access_token && body.refresh_token) {
+    await supabase.auth.setSession({
+      access_token: body.access_token,
+      refresh_token: body.refresh_token,
+    });
   } else {
     await supabase.auth.signOut();
   }
