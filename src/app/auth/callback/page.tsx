@@ -18,7 +18,9 @@ function CallbackInner() {
 
         // Read tokens from URL hash: /auth/callback#access_token=...&refresh_token=...
         const hash = typeof window !== "undefined" ? window.location.hash : "";
-        const hashParams = new URLSearchParams(hash.startsWith("#") ? hash.slice(1) : hash);
+        const hashParams = new URLSearchParams(
+          hash.startsWith("#") ? hash.slice(1) : hash,
+        );
         const access_token = hashParams.get("access_token");
         const refresh_token = hashParams.get("refresh_token");
 

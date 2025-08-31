@@ -1,4 +1,4 @@
-# Pepino — Invoices & Proposals 
+# Pepino — Invoices & Proposals
 
 Tiny web app to create beautiful proposals/invoices fast, then export pixel-perfect PDFs with Ashley’s branding.
 

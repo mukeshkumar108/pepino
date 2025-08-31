@@ -27,6 +27,7 @@ export const Invoice = z.object({
   meta: z.object({
     issuedAt: z.string(),
     locale: z.enum(["es-GT"]),
+    dueAt: z.string().optional(),
     number: z.string().optional(),
     series: z.string().optional(),
   }),
@@ -77,7 +78,16 @@ export type Invoice = z.infer<typeof Invoice>;
 // Optional: include empty strings if you like; can also omit
 export const exampleInvoice: Invoice = {
   id: "inv-demo-1",
-  meta: { issuedAt: new Date().toISOString().slice(0, 10), locale: "es-GT" },
+  meta: {
+    issuedAt: new Date().toISOString().slice(0, 10),
+    dueAt: (() => {
+      const d = new Date();
+      d.setDate(d.getDate() + 7);
+      return d.toISOString().slice(0, 10);
+    })(),
+    locale: "es-GT",
+    number: "2025-0001",
+  },
   client: { name: "FAUSTO CASTILLO", address: "" }, // 👈
   event: { name: "FERCO Z10", date: "2025-05-15", location: "Guatemala" },
   groups: [
@@ -85,15 +95,30 @@ export const exampleInvoice: Invoice = {
       id: "grp-1",
       title: "Mobiliario",
       items: [
-        { id: "it-1", qty: 16, desc: "Mesas cocteleras mantel negro", unit: { amount: 75, currency: "GTQ" } },
-        { id: "it-2", qty: 70, desc: "Bancos metálicos Tolix", unit: { amount: 20, currency: "GTQ" } },
+        {
+          id: "it-1",
+          qty: 16,
+          desc: "Mesas cocteleras mantel negro",
+          unit: { amount: 75, currency: "GTQ" },
+        },
+        {
+          id: "it-2",
+          qty: 70,
+          desc: "Bancos metálicos Tolix",
+          unit: { amount: 20, currency: "GTQ" },
+        },
       ],
     },
     {
       id: "grp-2",
       title: "Logística",
       items: [
-        { id: "it-3", qty: 1, desc: "Transporte y personal apoyo montaje", unit: { amount: 1500, currency: "GTQ" } },
+        {
+          id: "it-3",
+          qty: 1,
+          desc: "Transporte y personal apoyo montaje",
+          unit: { amount: 1500, currency: "GTQ" },
+        },
       ],
     },
   ],
@@ -101,9 +126,22 @@ export const exampleInvoice: Invoice = {
   currency: "GTQ",
   secondaryCurrency: { code: "USD", rateNote: "CAMBIO Q.8" },
   bank: {
-    gtq: { bank: "BI", type: "MONETARIA", account: "1940035790", name: "ASHLEY AYALA CORDON" },
-    usd:  { bank: "BI", type: "MONETARIA USD", account: "1940063082", name: "ASHLEY AYALA CORDON" },
+    gtq: {
+      bank: "BI",
+      type: "MONETARIA",
+      account: "1940035790",
+      name: "ASHLEY AYALA CORDON",
+    },
+    usd: {
+      bank: "BI",
+      type: "MONETARIA USD",
+      account: "1940063082",
+      name: "ASHLEY AYALA CORDON",
+    },
   },
-  terms: ["Precios más IVA / IMPUESTOS.","Para confirmar el servicio pagar 100% antes de iniciar."].join("\n"),
+  terms: [
+    "Precios más IVA / IMPUESTOS.",
+    "Para confirmar el servicio pagar 100% antes de iniciar.",
+  ].join("\n"),
   notes: "Propuesta según cambios y ajustes.",
 };

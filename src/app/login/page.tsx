@@ -11,48 +11,85 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [pw, setPw] = useState("");
-  const [mode, setMode] = useState<"magic" | "password">(MAGIC_ONLY ? "magic" : "magic");
-  const [loading, setLoading] = useState<"idle" | "magic" | "pw" | "signup">("idle");
+  const [mode, setMode] = useState<"magic" | "password">(
+    MAGIC_ONLY ? "magic" : "magic",
+  );
+  const [loading, setLoading] = useState<"idle" | "magic" | "pw" | "signup">(
+    "idle",
+  );
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   async function loginMagic(e: React.FormEvent) {
     e.preventDefault();
-    setErr(null); setMsg(null); setLoading("magic");
+    setErr(null);
+    setMsg(null);
+    setLoading("magic");
     const redirectTo = `${window.location.origin}/auth/callback?next=/app`;
     const { error } = await supabaseClient.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: redirectTo },
     });
-    if (error) { setErr(error.message); setLoading("idle"); return; }
+    if (error) {
+      setErr(error.message);
+      setLoading("idle");
+      return;
+    }
     setMsg("Te envié un enlace mágico. Revisa tu correo ✉️");
     setLoading("idle");
   }
 
   async function loginPassword(e: React.FormEvent) {
     e.preventDefault();
-    setErr(null); setMsg(null); setLoading("pw");
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pw });
-    if (error) { setErr(error.message); setLoading("idle"); return; }
+    setErr(null);
+    setMsg(null);
+    setLoading("pw");
+    const { data, error } = await supabaseClient.auth.signInWithPassword({
+      email,
+      password: pw,
+    });
+    if (error) {
+      setErr(error.message);
+      setLoading("idle");
+      return;
+    }
     const s = data.session;
-    if (!s) { setErr("No hubo sesión de Supabase."); setLoading("idle"); return; }
+    if (!s) {
+      setErr("No hubo sesión de Supabase.");
+      setLoading("idle");
+      return;
+    }
     // persist cookies on the server (SSR sees user)
     await fetch("/auth/set", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ access_token: s.access_token, refresh_token: s.refresh_token }),
+      body: JSON.stringify({
+        access_token: s.access_token,
+        refresh_token: s.refresh_token,
+      }),
     });
     router.replace("/app");
   }
 
   async function signUpPassword(e: React.MouseEvent) {
     e.preventDefault();
-    setErr(null); setMsg(null); setLoading("signup");
-    const { data, error } = await supabaseClient.auth.signUp({ email, password: pw });
-    if (error) { setErr(error.message); setLoading("idle"); return; }
+    setErr(null);
+    setMsg(null);
+    setLoading("signup");
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password: pw,
+    });
+    if (error) {
+      setErr(error.message);
+      setLoading("idle");
+      return;
+    }
     if (data.user) {
       // If email confirmations are ON in Supabase, they’ll need to confirm via email.
-      setMsg("Cuenta creada. Si tu proyecto requiere confirmación por email, revisa tu correo.");
+      setMsg(
+        "Cuenta creada. Si tu proyecto requiere confirmación por email, revisa tu correo.",
+      );
     } else {
       setMsg("Revisa tu correo para confirmar tu cuenta.");
     }

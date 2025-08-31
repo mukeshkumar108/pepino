@@ -2,19 +2,27 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-export function Collapsible({ title, children, defaultOpen = true }:{
-  title: string; children: React.ReactNode; defaultOpen?: boolean;
+export function Collapsible({
+  title,
+  children,
+  defaultOpen = true,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
       <button
         type="button"
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center justify-between px-3 py-3"
       >
         <span className="text-base font-medium">{title}</span>
-        <span className="text-sm text-gray-500">{open ? "Ocultar" : "Mostrar"}</span>
+        <span className="text-sm text-gray-500">
+          {open ? "Ocultar" : "Mostrar"}
+        </span>
       </button>
       <AnimatePresence initial={false}>
         {open && (

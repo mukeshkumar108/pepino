@@ -17,7 +17,11 @@ export const metadata: Metadata = {
   description: "Fast, friendly invoicing",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="es" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body className="bg-[var(--page)] text-[var(--text)] antialiased">

@@ -12,7 +12,13 @@ type Props = {
   autoFocus?: boolean; // NEW
 };
 
-function ItemRowBase({ item, itemIndex, onUpdate, onRemove, autoFocus }: Props) {
+function ItemRowBase({
+  item,
+  itemIndex,
+  onUpdate,
+  onRemove,
+  autoFocus,
+}: Props) {
   const descRef = useRef<HTMLInputElement | null>(null);
   const didFocus = useRef(false);
 
@@ -23,7 +29,10 @@ function ItemRowBase({ item, itemIndex, onUpdate, onRemove, autoFocus }: Props) 
       // slight delay so the element is fully laid out before scrolling/focusing
       const t = setTimeout(() => {
         descRef.current?.focus();
-        descRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        descRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
       }, 20);
       return () => clearTimeout(t);
     }
@@ -57,7 +66,9 @@ function ItemRowBase({ item, itemIndex, onUpdate, onRemove, autoFocus }: Props) 
           inputMode="numeric"
           pattern="[0-9]*"
           value={item.qty}
-          onChange={(e) => onUpdate(itemIndex, { qty: Number(e.target.value || 0) })}
+          onChange={(e) =>
+            onUpdate(itemIndex, { qty: Number(e.target.value || 0) })
+          }
         />
 
         {/* precio unitario */}

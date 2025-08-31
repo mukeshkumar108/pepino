@@ -24,7 +24,8 @@ const variantClasses: Record<ButtonVariant, string> = {
   secondary:
     "border border-neutral-300 bg-white text-neutral-900 hover:bg-neutral-50 " +
     "dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-100 dark:hover:bg-neutral-850",
-  ghost: "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800",
+  ghost:
+    "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800",
   destructive: "bg-red-600 text-white hover:bg-red-700",
   icon:
     "w-9 h-9 p-0 rounded-lg border border-transparent hover:bg-neutral-100 " +
@@ -41,9 +42,14 @@ export function Button<T extends ElementType = "button">({
   ...props
 }: ButtonProps<T>) {
   const As = (as ?? "button") as ElementType;
-  const extra = As === "button" && !("type" in props) ? { type: "button" as const } : {};
+  const extra =
+    As === "button" && !("type" in props) ? { type: "button" as const } : {};
   return (
-    <As className={clsx(base, variantClasses[variant], className)} {...extra} {...(props as any)}>
+    <As
+      className={clsx(base, variantClasses[variant], className)}
+      {...extra}
+      {...(props as any)}
+    >
       {leftIcon}
       {children}
       {rightIcon}

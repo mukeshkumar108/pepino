@@ -1,6 +1,10 @@
 import React from "react";
 import { Card } from "@/components/ui/Card";
-import { SortableList, SortableItem, DragHandle } from "@/components/dnd/Sortable";
+import {
+  SortableList,
+  SortableItem,
+  DragHandle,
+} from "@/components/dnd/Sortable";
 import { GripVertical, Trash2 } from "lucide-react";
 import type { Group, LineItem } from "@/lib/invoiceSchema";
 import { ItemRow } from "./ItemRow";
@@ -12,7 +16,11 @@ type Props = {
   onRename: (groupIdx: number, title: string) => void;
   onRemoveGroup: (groupIdx: number) => void;
   onAddItem: (groupIdx: number) => void;
-  onUpdateItem: (groupIdx: number, itemIdx: number, patch: Partial<LineItem>) => void;
+  onUpdateItem: (
+    groupIdx: number,
+    itemIdx: number,
+    patch: Partial<LineItem>,
+  ) => void;
   onRemoveItem: (groupIdx: number, itemIdx: number) => void;
   autofocusId?: string; // NEW: the item.id to autofocus
 };

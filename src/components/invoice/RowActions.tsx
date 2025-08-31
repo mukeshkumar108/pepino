@@ -14,7 +14,9 @@ export function RowActions({ id, status }: { id: string; status: Status }) {
   async function onDuplicate() {
     try {
       setBusy(true);
-      const res = await fetch(`/api/invoices/${id}/duplicate`, { method: "POST" });
+      const res = await fetch(`/api/invoices/${id}/duplicate`, {
+        method: "POST",
+      });
       if (!res.ok) throw new Error("dup failed");
       const { id: newId } = (await res.json()) as { id: string };
       router.push(`/app/invoices/${newId}`);
@@ -27,7 +29,8 @@ export function RowActions({ id, status }: { id: string; status: Status }) {
 
   async function onDelete() {
     if (status === "paid") return;
-    if (!confirm("¿Eliminar esta factura? Esta acción no se puede deshacer.")) return;
+    if (!confirm("¿Eliminar esta factura? Esta acción no se puede deshacer."))
+      return;
     try {
       setBusy(true);
       const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });

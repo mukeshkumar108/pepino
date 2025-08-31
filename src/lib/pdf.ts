@@ -15,19 +15,29 @@ export type PdfOptions = {
   footerNote?: string;
   /** Header bar color (defaults to #161616) */
   headerColorHex?: string;
-  itemsHeading?: string;   // heading above the items table
-  signerName?: string;     // printed under signature line (optional)
-  signerTitle?: string;    // e.g. company name / role (optional)
-  signatureUrl?: string;         // e.g. "/signature.png"
-  signatureDataUrl?: string;     // data: URL if you have it in memory
+  itemsHeading?: string; // heading above the items table
+  signerName?: string; // printed under signature line (optional)
+  signerTitle?: string; // e.g. company name / role (optional)
+  signatureUrl?: string; // e.g. "/signature.png"
+  signatureDataUrl?: string; // data: URL if you have it in memory
   signaturePrintedName?: string; // e.g. "DI Ashley Ayala"
 };
 
 // --- tiny utils ---
 function hexToRgb(hex: string) {
   const m = hex.replace("#", "");
-  const n = parseInt(m.length === 3 ? m.split("").map((c) => c + c).join("") : m, 16);
-  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const n = parseInt(
+    m.length === 3
+      ? m
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : m,
+    16,
+  );
+  const r = (n >> 16) & 255,
+    g = (n >> 8) & 255,
+    b = n & 255;
   return rgb(r / 255, g / 255, b / 255);
 }
 
@@ -68,7 +78,10 @@ function dataUrlToBytes(dataUrl: string): Uint8Array {
 }
 
 // --- core PDF generation ---
-export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): Promise<Blob> {
+export async function generateInvoicePdf(
+  inv: Invoice,
+  opts: PdfOptions = {},
+): Promise<Blob> {
   const pdf = await PDFDocument.create();
   const pageSize: [number, number] = [595.28, 841.89]; // A4
   const [pageWidth, pageHeight] = pageSize;
@@ -79,8 +92,8 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
 
   const headerHeight = 64;
   const footerHeight = 26;
-  const contentTopY = pageHeight - headerHeight - 20;  // start below header
-  const contentMinY = 80 + footerHeight;               // keep above footer
+  const contentTopY = pageHeight - headerHeight - 20; // start below header
+  const contentMinY = 80 + footerHeight; // keep above footer
 
   // Try to embed a logo if provided
   async function tryEmbedLogo() {
@@ -103,10 +116,20 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
       if (!bytes) return null;
       try {
         const img = await pdf.embedPng(bytes);
-        return { img, type: "png" as const, width: img.width, height: img.height };
+        return {
+          img,
+          type: "png" as const,
+          width: img.width,
+          height: img.height,
+        };
       } catch {
         const img = await pdf.embedJpg(bytes);
-        return { img, type: "jpg" as const, width: img.width, height: img.height };
+        return {
+          img,
+          type: "jpg" as const,
+          width: img.width,
+          height: img.height,
+        };
       }
     } catch {
       return null;
@@ -141,8 +164,8 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
   const signature = await tryEmbedSignature();
 
   const headerColor = hexToRgb(opts.headerColorHex ?? "#161616");
-  const lineColor = rgb(0.85, 0.86, 0.90);
-  
+  const lineColor = rgb(0.85, 0.86, 0.9);
+
   // Use Poppins for the PDF only
   pdf.registerFontkit(fontkit);
 
@@ -158,12 +181,18 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
   }
 
   const poppinsRegularBytes = await fetchFont("/fonts/Poppins-Regular.ttf");
-  const poppinsMediumBytes  = await fetchFont("/fonts/Poppins-Medium.ttf");
-  const poppinsSemiBytes    = await fetchFont("/fonts/Poppins-SemiBold.ttf"); // optional
+  const poppinsMediumBytes = await fetchFont("/fonts/Poppins-Medium.ttf");
+  const poppinsSemiBytes = await fetchFont("/fonts/Poppins-SemiBold.ttf"); // optional
 
-  const fontRegular = poppinsRegularBytes ? await pdf.embedFont(poppinsRegularBytes, { subset: true }) : undefined;
-  const fontMedium  = poppinsMediumBytes  ? await pdf.embedFont(poppinsMediumBytes,  { subset: true }) : fontRegular;
-  const fontSemi    = poppinsSemiBytes    ? await pdf.embedFont(poppinsSemiBytes,    { subset: true }) : fontMedium;
+  const fontRegular = poppinsRegularBytes
+    ? await pdf.embedFont(poppinsRegularBytes, { subset: true })
+    : undefined;
+  const fontMedium = poppinsMediumBytes
+    ? await pdf.embedFont(poppinsMediumBytes, { subset: true })
+    : fontRegular;
+  const fontSemi = poppinsSemiBytes
+    ? await pdf.embedFont(poppinsSemiBytes, { subset: true })
+    : fontMedium;
 
   // drop-in replacement for your old drawText() that supported bold=true/false
   function drawText(
@@ -173,15 +202,19 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
     y: number,
     size = 10,
     bold = false,
-    color = rgb(0, 0, 0)
+    color = rgb(0, 0, 0),
   ) {
-    const f = bold ? (fontSemi || fontMedium || fontRegular) : (fontRegular || fontMedium || fontSemi);
+    const f = bold
+      ? fontSemi || fontMedium || fontRegular
+      : fontRegular || fontMedium || fontSemi;
     page.drawText(text ?? "", { x, y, size, font: f!, color });
   }
   // Load a font that includes accented chars (not all do)
   // Helpers for measuring and right-aligning text
   const pickFont = (bold = false) =>
-    (bold ? (fontSemi || fontMedium || fontRegular) : (fontRegular || fontMedium || fontSemi))!;
+    (bold
+      ? fontSemi || fontMedium || fontRegular
+      : fontRegular || fontMedium || fontSemi)!;
 
   function measure(text: string, size: number, bold = false) {
     const f = pickFont(bold);
@@ -195,14 +228,115 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
     y: number,
     size = 10,
     bold = false,
-    color = rgb(0, 0, 0)
+    color = rgb(0, 0, 0),
   ) {
     const f = pickFont(bold);
     const w = measure(text, size, bold);
     page.drawText(text ?? "", { x: rightX - w, y, size, font: f, color });
   }
 
-  
+  // Formats "2024-12-31" -> "31/12/2024"; returns "" if input is falsy
+  function formatDate(iso?: string): string {
+    if (!iso) return "";
+    const [y, m, d] = (iso ?? "").split("-");
+    return d && m && y ? `${d}/${m}/${y}` : (iso ?? "");
+  }
+
+  // Draws the invoice meta in the top-right and returns the new cursorY
+  function drawInvoiceMeta(page: PDFPage, startY: number): number {
+    const s = 10; // uniform size
+    const b = false; // uniform weight (not bold)
+    const lineGap = 12; // spacing between lines
+    const blockGap = 10; // extra space after the block
+
+    const num = inv.meta?.number ? `N.º ${inv.meta.number}` : null;
+    const fecha = inv.meta?.issuedAt
+      ? `Fecha: ${formatDate(inv.meta.issuedAt)}`
+      : null;
+    const vence = inv.meta?.dueAt
+      ? `Vence: ${formatDate(inv.meta.dueAt)}`
+      : null;
+
+    const lines = [num, fecha, vence].filter(Boolean) as string[];
+
+    let y = startY;
+    for (const t of lines) {
+      drawRight(page, t, right, y, s, b);
+      y -= lineGap;
+    }
+    return y - blockGap;
+  }
+
+  // Wraps a single token (word) by width if needed
+  function breakTokenByWidth(
+    token: string,
+    maxWidth: number,
+    size = 10,
+    bold = false,
+  ): string[] {
+    // Breaks a single super-long word into pieces that fit
+    const pieces: string[] = [];
+    let cur = "";
+    for (const ch of token.split("")) {
+      const next = cur + ch;
+      if (measure(next, size, bold) <= maxWidth) {
+        cur = next;
+      } else {
+        if (cur) pieces.push(cur);
+        cur = ch;
+      }
+    }
+    if (cur) pieces.push(cur);
+    return pieces.length ? pieces : [token];
+  }
+
+  function wrapByWidth(
+    text: string,
+    maxWidth: number,
+    size = 10,
+    bold = false,
+  ): string[] {
+    const words = (text ?? "").split(/\s+/).filter(Boolean);
+    const lines: string[] = [];
+    let line = "";
+
+    for (const w of words) {
+      // If a single word is wider than the column, break it
+      if (measure(w, size, bold) > maxWidth) {
+        const chunks = breakTokenByWidth(w, maxWidth, size, bold);
+        for (const c of chunks) {
+          if (!line) {
+            line = c;
+          } else {
+            const trial = line + " " + c;
+            if (measure(trial, size, bold) <= maxWidth) {
+              line = trial;
+            } else {
+              lines.push(line);
+              line = c;
+            }
+          }
+        }
+        continue;
+      }
+
+      // Normal word flow
+      if (!line) {
+        line = w;
+        continue;
+      }
+      const trial = line + " " + w;
+      if (measure(trial, size, bold) <= maxWidth) {
+        line = trial;
+      } else {
+        lines.push(line);
+        line = w;
+      }
+    }
+    if (line) lines.push(line);
+    return lines.length ? lines : [""];
+  }
+
   function drawHeader(page: PDFPage) {
     // bar
     page.drawRectangle({
@@ -224,17 +358,10 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
       page.drawImage(logo.img, { x, y, width: w, height: h });
     }
 
-    // title (right)
+    // title (right) — anchor to the header bar edge (pageWidth), not content "right"
     const title = opts.title || "Propuesta / Factura";
-    drawText(
-      page,
-      title,
-      right - Math.max(120, (title.length * 6)),
-      pageHeight - headerHeight + (headerHeight - 12) / 2,
-      14,
-      true,
-      rgb(1, 1, 1)
-    );
+    const titleY = pageHeight - headerHeight + (headerHeight - 12) / 2; // small breathing room from the edge
+    drawRight(page, title, right, titleY, 14, true, rgb(1, 1, 1));
   }
 
   function drawFooter(page: PDFPage, pageIndex: number, totalPages: number) {
@@ -272,6 +399,8 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
     }
   };
 
+  cursorY = drawInvoiceMeta(page, cursorY);
+
   // ======= CONTENT =======
 
   // Client / Event block (two columns; multiline)
@@ -289,7 +418,12 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
     text: string,
     x: number,
     startY: number,
-    opts2?: { lineHeight?: number; size?: number; bold?: boolean; maxChars?: number }
+    opts2?: {
+      lineHeight?: number;
+      size?: number;
+      bold?: boolean;
+      maxChars?: number;
+    },
   ) => {
     const lineHeight = opts2?.lineHeight ?? 12;
     const size = opts2?.size ?? 10;
@@ -317,15 +451,25 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
   drawText(page, inv.client.name || "", left, yClient);
   yClient -= 12;
   if (inv.client.address && inv.client.address.trim()) {
-    yClient = drawMultiline(inv.client.address, left, yClient, { maxChars: 42 });
+    yClient = drawMultiline(inv.client.address, left, yClient, {
+      maxChars: 42,
+    });
   }
 
   // Right: event
   let yEvent = startEventY;
-  if (inv.event?.name) { drawText(page, inv.event.name, eventColX, yEvent); yEvent -= 12; }
-  if (inv.event?.date) { drawText(page, inv.event.date, eventColX, yEvent); yEvent -= 12; }
+  if (inv.event?.name) {
+    drawText(page, inv.event.name, eventColX, yEvent);
+    yEvent -= 12;
+  }
+  if (inv.event?.date) {
+    drawText(page, inv.event.date, eventColX, yEvent);
+    yEvent -= 12;
+  }
   if (inv.event?.location && inv.event.location.trim()) {
-    yEvent = drawMultiline(inv.event.location, eventColX, yEvent, { maxChars: 42 });
+    yEvent = drawMultiline(inv.event.location, eventColX, yEvent, {
+      maxChars: 42,
+    });
   }
 
   cursorY = Math.min(yClient, yEvent) - 8;
@@ -340,18 +484,24 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
   });
 
   // generous spacing BEFORE the heading (a full line break feel)
-  const headingSize = 20;        // bigger title
-  const beforeHeadingGap = 32;   // space from divider to heading baseline
-  const afterHeadingGap  = 24;   // space after heading before first group
+  const headingSize = 20; // bigger title
+  const beforeHeadingGap = 32; // space from divider to heading baseline
+  const afterHeadingGap = 24; // space after heading before first group
 
   cursorY -= beforeHeadingGap;
 
   // not bold, but large; change `false` -> `true` if you want it semi-bold
-  drawText(page, opts.itemsHeading ?? "Detalle / Ítems", left, cursorY, headingSize, false);
+  drawText(
+    page,
+    opts.itemsHeading ?? "Detalle / Ítems",
+    left,
+    cursorY,
+    headingSize,
+    false,
+  );
 
   // generous spacing AFTER the heading (so first group isn't flush)
   cursorY -= afterHeadingGap;
-
 
   // Groups / items
   inv.groups.forEach((g) => {
@@ -359,20 +509,24 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
     drawText(page, g.title, left, cursorY, 12, true);
     cursorY -= 16;
 
-    // Header band for readability
+    // Header band
     const headerY = cursorY;
     page.drawRectangle({
       x: left,
       y: headerY - 2,
       width: right - left,
       height: 16,
-      color: rgb(0.96, 0.97, 1.0), // very light indigo-ish
+      color: rgb(0.96, 0.97, 1.0),
     });
+
+    // fixed right edges for the amounts (headers + rows share these)
+    const unitRight = right - 120;
+    const totalRight = right;
 
     drawText(page, "CANT", left, headerY, 10, true);
     drawText(page, "Descripción", left + 60, headerY, 10, true);
-    drawText(page, "Precio U.", right - 150, headerY, 10, true);
-    drawText(page, "Total", right - 70, headerY, 10, true);
+    drawRight(page, "Precio U.", unitRight, headerY, 10, true);
+    drawRight(page, "Total", totalRight, headerY, 10, true);
     cursorY -= 14;
 
     g.items.forEach((it) => {
@@ -380,16 +534,29 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
 
       const qtyX = left;
       const descX = left + 60;
-      const unitX = right - 150;
-      const totalX = right - 70;
 
-      const descLines = wrapText(it.desc ?? "", 80);
+      // description column ends before the unit price column
+      const descColWidth = unitRight - descX - 8;
+
+      // wrap description by measured width (so it never hits the numbers)
+      const descLines = wrapByWidth(it.desc ?? "", descColWidth, 10, false);
       const rowHeight = 14 * Math.max(1, descLines.length);
 
-      drawText(page, String(it.qty), qtyX, cursorY);
-      drawText(page, `Q ${Number(it.unit.amount ?? 0).toFixed(2)}`, unitX, cursorY);
-      drawText(page, `Q ${(Number(it.qty ?? 0) * Number(it.unit.amount ?? 0)).toFixed(2)}`, totalX, cursorY);
+      const unitAmt = Number(it.unit.amount ?? 0);
+      const lineTot = Number(it.qty ?? 0) * unitAmt;
 
+      drawText(page, String(it.qty), qtyX, cursorY);
+      drawRight(page, `Q ${unitAmt.toFixed(2)}`, unitRight, cursorY, 10, false);
+      drawRight(
+        page,
+        `Q ${lineTot.toFixed(2)}`,
+        totalRight,
+        cursorY,
+        10,
+        false,
+      );
+
+      // multi-line description in its column
       let y = cursorY;
       for (const line of descLines) {
         drawText(page, line, descX, y);
@@ -399,7 +566,7 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
       cursorY -= rowHeight;
     });
 
-    cursorY -= 8;
+    cursorY -= 8; // spacing after group
   });
 
   // Divider before totals (after the items list)
@@ -418,7 +585,7 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
 
   // Build strings
   const subLabel = "SUBTOTAL";
-  const taxPct   = Math.round((inv.tax?.rate ?? 0) * 100);
+  const taxPct = Math.round((inv.tax?.rate ?? 0) * 100);
   const taxLabel = `IMPUESTOS (${taxPct}%)`;
   const totLabel = "TOTAL";
 
@@ -440,15 +607,15 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
   cursorY -= 6;
 
   drawRight(page, subLabel, labelRight, cursorY, 10, true);
-  drawRight(page, subAmt,   amountRight, cursorY, 10, false);
+  drawRight(page, subAmt, amountRight, cursorY, 10, false);
   cursorY -= 14;
 
   drawRight(page, taxLabel, labelRight, cursorY, 10, true);
-  drawRight(page, taxAmt,   amountRight, cursorY, 10, false);
+  drawRight(page, taxAmt, amountRight, cursorY, 10, false);
   cursorY -= 16;
 
   drawRight(page, totLabel, labelRight, cursorY, 12, true);
-  drawRight(page, totAmt,   amountRight, cursorY, 12, true);
+  drawRight(page, totAmt, amountRight, cursorY, 12, true);
   cursorY -= 16;
 
   // Divider after totals (with spacing before & after)
@@ -463,7 +630,6 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
   });
   cursorY -= 12; // spacing AFTER divider
 
-
   // Bank details
   if (inv.bank?.gtq || inv.bank?.usd) {
     cursorY -= 10;
@@ -474,7 +640,7 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
         page,
         `Q: ${inv.bank.gtq.bank} – ${inv.bank.gtq.type} – ${inv.bank.gtq.account} – ${inv.bank.gtq.name}`,
         left,
-        cursorY
+        cursorY,
       );
       cursorY -= 14;
     }
@@ -483,7 +649,7 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
         page,
         `USD: ${inv.bank.usd.bank} – ${inv.bank.usd.type} – ${inv.bank.usd.account} – ${inv.bank.usd.name}`,
         left,
-        cursorY
+        cursorY,
       );
       cursorY -= 14;
     }
@@ -519,7 +685,10 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
       if (bulletMode) {
         rawLines.forEach((l) => {
           newPageIfNeeded();
-          if (!l.trim()) { cursorY -= 6; return; }
+          if (!l.trim()) {
+            cursorY -= 6;
+            return;
+          }
           const text = l.replace(/^\s*([-*•]|\d+\.)\s+/, "");
           const wrapped = wrapText(text, 88);
           drawText(page, "•", left, cursorY);
@@ -572,7 +741,15 @@ export async function generateInvoicePdf(inv: Invoice, opts: PdfOptions = {}): P
   }
 
   if (opts.signaturePrintedName) {
-    drawText(page, opts.signaturePrintedName, left, cursorY, 9, false, rgb(0.35, 0.35, 0.35));
+    drawText(
+      page,
+      opts.signaturePrintedName,
+      left,
+      cursorY,
+      9,
+      false,
+      rgb(0.35, 0.35, 0.35),
+    );
     cursorY -= 8;
   }
 

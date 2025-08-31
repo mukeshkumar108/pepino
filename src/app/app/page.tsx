@@ -40,14 +40,16 @@ export default async function AppHome() {
   const supabase = await supabaseServer();
   const { data, error } = await supabase
     .from("invoices")
-    .select(`
+    .select(
+      `
       id,
       status,
       created_at,
       client_name:data->client->>name,
       event_name:data->event->>name,
       number:data->meta->>number
-    `)
+    `,
+    )
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -76,7 +78,10 @@ export default async function AppHome() {
       {invoices.length === 0 ? (
         <div className="border rounded-xl p-6 text-center bg-[var(--card)]">
           <p className="opacity-70 mb-3">Aún no tienes facturas.</p>
-          <Link href="/app/invoices/new" className="inline-block border rounded px-3 py-2">
+          <Link
+            href="/app/invoices/new"
+            className="inline-block border rounded px-3 py-2"
+          >
             Crear la primera
           </Link>
         </div>
@@ -88,7 +93,9 @@ export default async function AppHome() {
               inv.client_name?.trim() ||
               inv.number?.trim() ||
               "Sin título";
-            const when = inv.created_at ? new Date(inv.created_at).toLocaleString() : "";
+            const when = inv.created_at
+              ? new Date(inv.created_at).toLocaleString()
+              : "";
 
             return (
               <li
@@ -97,8 +104,11 @@ export default async function AppHome() {
               >
                 <div className="min-w-0 mr-3">
                   <div className="flex items-center gap-2">
-                    <span className="font-medium truncate">{title}</span> {/* title first */}
-                    <span className={`px-2 py-0.5 rounded-full text-xs ${CHIP[inv.status]}`}>
+                    <span className="font-medium truncate">{title}</span>{" "}
+                    {/* title first */}
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs ${CHIP[inv.status]}`}
+                    >
                       {STATUS_LABEL[inv.status]}
                     </span>
                   </div>

@@ -42,7 +42,10 @@ export function parseFreeText(input: string): ParsedGroup[] {
   for (const raw of lines) {
     // New group headings: "Mobiliario:" or "# Logística"
     if (/[:：]\s*$/.test(raw) || /^#\s+/.test(raw)) {
-      const title = raw.replace(/^#\s+/, "").replace(/[:：]\s*$/, "").trim();
+      const title = raw
+        .replace(/^#\s+/, "")
+        .replace(/[:：]\s*$/, "")
+        .trim();
       if (title) {
         current = { title, items: [] };
         groups.push(current);
@@ -51,14 +54,22 @@ export function parseFreeText(input: string): ParsedGroup[] {
     }
 
     // Detect currency hints
-    const currency: "GTQ" | "USD" | undefined =
-      USD_RE.test(raw) ? "USD" : Q_RE.test(raw) || /Q\b/i.test(raw) ? "GTQ" : undefined;
+    const currency: "GTQ" | "USD" | undefined = USD_RE.test(raw)
+      ? "USD"
+      : Q_RE.test(raw) || /Q\b/i.test(raw)
+        ? "GTQ"
+        : undefined;
 
     // Strip currency symbols for numeric parsing
-    const lc = raw.replace(/\b(Q|GTQ|USD|\$)\b/gi, "").replace(/\s{2,}/g, " ").trim();
+    const lc = raw
+      .replace(/\b(Q|GTQ|USD|\$)\b/gi, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
 
     // Pattern: "Desc qty x price" OR "Desc qty @ price"
-    let m = lc.match(/(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:x|×|@)\s*(\d+(?:[.,]\d+)?)(?!\S)/i);
+    let m = lc.match(
+      /(.+?)\s+(\d+(?:[.,]\d+)?)\s*(?:x|×|@)\s*(\d+(?:[.,]\d+)?)(?!\S)/i,
+    );
     if (m) {
       current.items.push({
         desc: m[1].trim(),

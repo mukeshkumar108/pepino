@@ -14,7 +14,7 @@ export async function supabaseServer() {
           /* no writes from Server Components */
         },
       },
-    }
+    },
   );
 }
 
@@ -33,6 +33,6 @@ export async function supabaseServerWritable() {
           });
         },
       },
-    }
+    },
   );
 }

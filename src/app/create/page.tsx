@@ -1,16 +1,23 @@
 "use client";
 
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { 
-  DndContext, 
+import {
+  DndContext,
   DragEndEvent,
   DragStartEvent,
-  DragOverlay, 
+  DragOverlay,
   closestCenter,
-  MeasuringStrategy
- } from "@dnd-kit/core";
-import { restrictToVerticalAxis, restrictToWindowEdges } from "@dnd-kit/modifiers";
-import { SortableList, SortableItem, useDndSensors } from "@/components/dnd/Sortable";
+  MeasuringStrategy,
+} from "@dnd-kit/core";
+import {
+  restrictToVerticalAxis,
+  restrictToWindowEdges,
+} from "@dnd-kit/modifiers";
+import {
+  SortableList,
+  SortableItem,
+  useDndSensors,
+} from "@/components/dnd/Sortable";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Collapsible } from "@/components/ui/Collapsible";
@@ -37,19 +44,27 @@ const STATUS_LABEL: Record<Status, string> = {
 };
 
 const STATUS_CHIP: Record<Status, string> = {
-  draft:   "bg-neutral-100 text-neutral-800 border border-neutral-200",
-  quote:   "bg-blue-50 text-blue-700 border border-blue-200",
+  draft: "bg-neutral-100 text-neutral-800 border border-neutral-200",
+  quote: "bg-blue-50 text-blue-700 border border-blue-200",
   invoice: "bg-amber-50 text-amber-800 border border-amber-200",
-  paid:    "bg-green-50 text-green-700 border border-green-200",
+  paid: "bg-green-50 text-green-700 border border-green-200",
 };
 
 const TAX_PRESETS = [0, 0.05, 0.17];
 
 function StatusChip({ s }: { s: Status }) {
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${STATUS_CHIP[s]}`}>
+    <span
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${STATUS_CHIP[s]}`}
+    >
       {s === "paid" ? "✅ " : null}
-      {s === "quote" ? "Propuesta" : s === "invoice" ? "Factura" : s === "draft" ? "Borrador" : "Pagada"}
+      {s === "quote"
+        ? "Propuesta"
+        : s === "invoice"
+          ? "Factura"
+          : s === "draft"
+            ? "Borrador"
+            : "Pagada"}
     </span>
   );
 }
@@ -60,10 +75,13 @@ function uid(prefix = "id") {
 
 function useDebounce<T extends unknown[]>(fn: (...args: T) => void, ms = 600) {
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
-  return useCallback((...args: T) => {
-    if (t.current) clearTimeout(t.current);
-    t.current = setTimeout(() => fn(...args), ms);
-  }, [fn, ms]);
+  return useCallback(
+    (...args: T) => {
+      if (t.current) clearTimeout(t.current);
+      t.current = setTimeout(() => fn(...args), ms);
+    },
+    [fn, ms],
+  );
 }
 
 export default function CreateInvoicePage({
@@ -75,14 +93,18 @@ export default function CreateInvoicePage({
   invoiceId?: string;
   initialStatus?: Status;
 }) {
-  const [inv, setInv] = useState<Invoice>(initial ?? { ...exampleInvoice, groups: [] });
+  const [inv, setInv] = useState<Invoice>(
+    initial ?? { ...exampleInvoice, groups: [] },
+  );
   const { subtotal, tax, total } = useMemo(() => invoiceTotalsQ(inv), [inv]);
   const [quickText, setQuickText] = useState("");
-  const [autofocusItemId, setAutofocusItemId] = useState<string | undefined>(undefined);
+  const [autofocusItemId, setAutofocusItemId] = useState<string | undefined>(
+    undefined,
+  );
   const router = useRouter();
   const [status, setStatus] = useState<Status>(initialStatus ?? "draft");
 
-    // autosave indicator + debounced save
+  // autosave indicator + debounced save
   const [savedAt, setSavedAt] = useState<number | null>(null);
   const recentlySaved = !!savedAt && Date.now() - savedAt < 1500;
 
@@ -96,10 +118,49 @@ export default function CreateInvoicePage({
     setSavedAt(Date.now());
   }, 700);
 
+  // ✅ New: initialize invoice number / dates once on mount
+  useEffect(() => {
+    setInv((v) => {
+      // If everything already set, do nothing
+      if (v.meta?.number && v.meta?.issuedAt && v.meta?.dueAt) return v;
+
+      const toISO = (d: Date) => d.toISOString().slice(0, 10);
+
+      // Use issuedAt if present, else today
+      const issued = v.meta?.issuedAt ? new Date(v.meta.issuedAt) : new Date();
+
+      // Default dueAt = issuedAt + 7 days (only if missing)
+      const due = v.meta?.dueAt ? new Date(v.meta.dueAt) : new Date(issued);
+      if (!v.meta?.dueAt) due.setDate(due.getDate() + 7);
+
+      // Generate a simple number if missing (YYYYMMDD-rand)
+      const invNo =
+        v.meta?.number ||
+        (() => {
+          const y = issued.getFullYear();
+          const m = String(issued.getMonth() + 1).padStart(2, "0");
+          const d = String(issued.getDate()).padStart(2, "0");
+          const rand = String(Math.floor(Math.random() * 900) + 100);
+          return `${y}${m}${d}-${rand}`;
+        })();
+
+      return {
+        ...v,
+        meta: {
+          locale: v.meta?.locale ?? "es-GT",
+          series: v.meta?.series,
+          number: invNo,
+          issuedAt: v.meta?.issuedAt ?? toISO(issued),
+          dueAt: v.meta?.dueAt ?? toISO(due),
+        },
+      };
+    });
+  }, []); // <-- empty deps = run once
+
   useEffect(() => {
     saveDebounced(inv);
   }, [inv, saveDebounced]);
-  
+
   async function saveNow() {
     if (!invoiceId) return;
     await fetch(`/api/invoices/${invoiceId}`, {
@@ -112,7 +173,9 @@ export default function CreateInvoicePage({
 
   async function handleDelete() {
     if (!invoiceId) return;
-    const ok = confirm("¿Eliminar esta factura? Esta acción no se puede deshacer.");
+    const ok = confirm(
+      "¿Eliminar esta factura? Esta acción no se puede deshacer.",
+    );
     if (!ok) return;
     const res = await fetch(`/api/invoices/${invoiceId}`, { method: "DELETE" });
     if (res.ok) router.replace("/app");
@@ -121,7 +184,9 @@ export default function CreateInvoicePage({
 
   async function handleDuplicate() {
     if (!invoiceId) return;
-    const res = await fetch(`/api/invoices/${invoiceId}/duplicate`, { method: "POST" });
+    const res = await fetch(`/api/invoices/${invoiceId}/duplicate`, {
+      method: "POST",
+    });
     if (!res.ok) return alert("No se pudo duplicar.");
     const { id } = await res.json();
     router.replace(`/app/invoices/${id}`);
@@ -136,7 +201,9 @@ export default function CreateInvoicePage({
       body: JSON.stringify({ data: inv, status: next }), // pass the NEW status explicitly
     })
       .then(() => setSavedAt(Date.now()))
-      .catch(() => {/* no-op */});
+      .catch(() => {
+        /* no-op */
+      });
   }
 
   // ---- PDF handlers (dynamic import keeps Vercel happy) ----
@@ -144,9 +211,9 @@ export default function CreateInvoicePage({
     const { downloadInvoicePdf } = await import("@/lib/pdf");
     await downloadInvoicePdf(inv, {
       title: STATUS_LABEL[status],
-      logoUrl: "/rosegold_logo-big--white.png",                // put a file in /public/logo.png
+      logoUrl: "/rosegold_logo-big--white.png", // put a file in /public/logo.png
       footerNote: inv.client.name ? `Cliente: ${inv.client.name}` : "",
-      signatureUrl: "/signature.png",          // <- put Ashley’s stamp in /public/signature.png
+      signatureUrl: "/signature.png", // <- put Ashley’s stamp in /public/signature.png
       signaturePrintedName: "DI Ashley Ayala", // <- or preferred text
     });
   }
@@ -156,7 +223,7 @@ export default function CreateInvoicePage({
       title: STATUS_LABEL[status],
       logoUrl: "/rosegold_logo-big--white.png",
       footerNote: inv.client.name ? `Cliente: ${inv.client.name}` : "",
-      signatureUrl: "/signature.png",          // <- put Ashley’s stamp in /public/signature.png
+      signatureUrl: "/signature.png", // <- put Ashley’s stamp in /public/signature.png
       signaturePrintedName: "DI Ashley Ayala", // <- or preferred text
     });
   }
@@ -173,7 +240,9 @@ export default function CreateInvoicePage({
   }
   function renameGroup(groupIdx: number, title: string) {
     setInv((v) => {
-      const groups = v.groups.map((g, gi) => (gi === groupIdx ? { ...g, title } : g));
+      const groups = v.groups.map((g, gi) =>
+        gi === groupIdx ? { ...g, title } : g,
+      );
       return { ...v, groups };
     });
   }
@@ -195,21 +264,27 @@ export default function CreateInvoicePage({
     };
     setInv((v) => {
       const groups = v.groups.map((g, gi) =>
-        gi === groupIdx ? { ...g, items: [...g.items, newItem] } : g
+        gi === groupIdx ? { ...g, items: [...g.items, newItem] } : g,
       );
       return { ...v, groups };
     });
     setAutofocusItemId(id); // NEW
   }
-  function updateItem(groupIdx: number, itemIdx: number, patch: Partial<LineItem>) {
+  function updateItem(
+    groupIdx: number,
+    itemIdx: number,
+    patch: Partial<LineItem>,
+  ) {
     setInv((v) => {
       const groups = v.groups.map((g, gi) =>
         gi !== groupIdx
           ? g
           : {
               ...g,
-              items: g.items.map((it, ii) => (ii !== itemIdx ? it : { ...it, ...patch })),
-            }
+              items: g.items.map((it, ii) =>
+                ii !== itemIdx ? it : { ...it, ...patch },
+              ),
+            },
       );
       return { ...v, groups };
     });
@@ -217,7 +292,9 @@ export default function CreateInvoicePage({
   function removeItem(groupIdx: number, itemIdx: number) {
     setInv((v) => {
       const groups = v.groups.map((g, gi) =>
-        gi !== groupIdx ? g : { ...g, items: g.items.filter((_, ii) => ii !== itemIdx) }
+        gi !== groupIdx
+          ? g
+          : { ...g, items: g.items.filter((_, ii) => ii !== itemIdx) },
       );
       return { ...v, groups };
     });
@@ -231,7 +308,7 @@ export default function CreateInvoicePage({
       const next = structuredClone(v);
       for (const g of groups) {
         let gi = next.groups.findIndex(
-          (x) => x.title.trim().toLowerCase() === g.title.trim().toLowerCase()
+          (x) => x.title.trim().toLowerCase() === g.title.trim().toLowerCase(),
         );
         if (gi < 0) {
           next.groups.push({ id: uid("grp"), title: g.title, items: [] });
@@ -311,9 +388,8 @@ export default function CreateInvoicePage({
 
   const hasItems = useMemo(
     () => inv.groups.some((g) => g.items.length > 0),
-    [inv.groups]
+    [inv.groups],
   );
-
 
   return (
     <>
@@ -322,10 +398,16 @@ export default function CreateInvoicePage({
         {/* Editor toolbar */}
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-3">
-            <Link href="/app" className="text-sm underline">← Volver</Link>
-            <StatusChip s={status} />   {/* add this */}
+            <Link href="/app" className="text-sm underline">
+              ← Volver
+            </Link>
+            <StatusChip s={status} /> {/* add this */}
             <div className="text-xs opacity-70">
-              {invoiceId ? (recentlySaved ? "Guardado ✓" : "Guardando…") : "Borrador local"}
+              {invoiceId
+                ? recentlySaved
+                  ? "Guardado ✓"
+                  : "Guardando…"
+                : "Borrador local"}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -339,9 +421,16 @@ export default function CreateInvoicePage({
               <option value="invoice">Factura</option>
               <option value="paid">Pagada</option>
             </select>
-            <button onClick={handleDuplicate} className="text-sm underline">Duplicar</button>
+            <button onClick={handleDuplicate} className="text-sm underline">
+              Duplicar
+            </button>
             {status !== "paid" && (
-              <button onClick={handleDelete} className="text-sm underline text-red-600">Eliminar</button>
+              <button
+                onClick={handleDelete}
+                className="text-sm underline text-red-600"
+              >
+                Eliminar
+              </button>
             )}
           </div>
         </div>
@@ -361,7 +450,10 @@ export default function CreateInvoicePage({
               className="w-full border rounded p-3 min-h-[72px]"
               value={inv.client.address ?? ""}
               onChange={(e) =>
-                setInv((v) => ({ ...v, client: { ...v.client, address: e.target.value } }))
+                setInv((v) => ({
+                  ...v,
+                  client: { ...v.client, address: e.target.value },
+                }))
               }
               placeholder={`Calle 123
           Colonia Centro
@@ -375,7 +467,10 @@ export default function CreateInvoicePage({
                 className="w-full border rounded p-3 h-11"
                 value={inv.event?.name || ""}
                 onChange={(e) =>
-                  setInv((v) => ({ ...v, event: { ...v.event, name: e.target.value } }))
+                  setInv((v) => ({
+                    ...v,
+                    event: { ...v.event, name: e.target.value },
+                  }))
                 }
                 placeholder="p.ej. Boda García — catering"
               />
@@ -386,7 +481,10 @@ export default function CreateInvoicePage({
                 className="w-full border rounded p-3 h-11"
                 value={inv.event?.date || ""}
                 onChange={(e) =>
-                  setInv((v) => ({ ...v, event: { ...v.event, date: e.target.value } }))
+                  setInv((v) => ({
+                    ...v,
+                    event: { ...v.event, date: e.target.value },
+                  }))
                 }
               />
             </Field>
@@ -395,7 +493,10 @@ export default function CreateInvoicePage({
                 className="w-full border rounded p-3 min-h-[72px]"
                 value={inv.event?.location || ""}
                 onChange={(e) =>
-                  setInv((v) => ({ ...v, event: { ...v.event, location: e.target.value } }))
+                  setInv((v) => ({
+                    ...v,
+                    event: { ...v.event, location: e.target.value },
+                  }))
                 }
                 placeholder={`Calle 123
                 Colonia Centro
@@ -405,11 +506,54 @@ export default function CreateInvoicePage({
           </div>
         </Card>
 
+        {/* Invioice meta (number, dates, currency) */}
+        <Card className="p-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Field label="N.º de factura">
+            <input
+              className="w-full border rounded p-3 h-11"
+              value={inv.meta?.number ?? ""}
+              onChange={(e) =>
+                setInv((v) => ({
+                  ...v,
+                  meta: { ...v.meta, number: e.target.value },
+                }))
+              }
+              placeholder="20250112-123"
+            />
+          </Field>
+          <Field label="Fecha de emisión">
+            <input
+              type="date"
+              className="w-full border rounded p-3 h-11"
+              value={inv.meta?.issuedAt ?? ""}
+              onChange={(e) =>
+                setInv((v) => ({
+                  ...v,
+                  meta: { ...v.meta, issuedAt: e.target.value },
+                }))
+              }
+            />
+          </Field>
+          <Field label="Fecha de vencimiento">
+            <input
+              type="date"
+              className="w-full border rounded p-3 h-11"
+              value={inv.meta?.dueAt ?? ""}
+              onChange={(e) =>
+                setInv((v) => ({
+                  ...v,
+                  meta: { ...v.meta, dueAt: e.target.value },
+                }))
+              }
+            />
+          </Field>
+        </Card>
+
         {/* MAGIC INPUT */}
         <Card className="p-3 space-y-3">
           <Field label="Texto libre (opcional)">
             <textarea
-              id="magic-input" 
+              id="magic-input"
               className="w-full border rounded p-3 min-h-[120px]"
               placeholder={`Ejemplos:
 Mobiliario:
@@ -431,20 +575,27 @@ Luces 1 x 500`}
         {/* Groups + Items with DnD */}
         <div className="flex justify-between items-center">
           <h2 className="text-lg font-medium">Secciones / Grupos</h2>
-          <Button variant="primary" onClick={addGroup}>+ Añadir grupo</Button>
+          <Button variant="primary" onClick={addGroup}>
+            + Añadir grupo
+          </Button>
         </div>
 
         {inv.groups.length === 0 ? (
           <Card className="p-6 text-center space-y-3 bg-[var(--card)] text-[var(--text)]">
             <h3 className="text-base font-semibold">Sin grupos aún</h3>
             <p className="text-sm text-[var(--muted)]">
-              Añade tu primer grupo o pega texto en “Texto libre” y conviértelo en ítems.
+              Añade tu primer grupo o pega texto en “Texto libre” y conviértelo
+              en ítems.
             </p>
             <div className="flex gap-2 justify-center">
               <Button onClick={addGroup}>Añadir grupo</Button>
               <Button
                 variant="secondary"
-                onClick={() => document.getElementById("magic-input")?.scrollIntoView({ behavior: "smooth" })}
+                onClick={() =>
+                  document
+                    .getElementById("magic-input")
+                    ?.scrollIntoView({ behavior: "smooth" })
+                }
               >
                 Usar texto libre
               </Button>
@@ -477,25 +628,31 @@ Luces 1 x 500`}
             </SortableList>
 
             {/* 👇 DragOverlay must be inside DndContext */}
-            <DragOverlay dropAnimation={{ duration: 180, easing: "cubic-bezier(.2,.8,.2,1)" }}>
+            <DragOverlay
+              dropAnimation={{
+                duration: 180,
+                easing: "cubic-bezier(.2,.8,.2,1)",
+              }}
+            >
               {activeGroupId ? (
                 <Card className="p-3 pointer-events-none shadow-lg border border-[var(--chip-ring)] bg-[var(--card)]">
                   <div className="flex items-center gap-2">
                     <div className="h-5 w-5 rounded bg-[var(--chip-ring)]/60" />
                     <div className="font-medium">
-                      {inv.groups.find((x) => x.id === activeGroupId)?.title ?? "Grupo"}
+                      {inv.groups.find((x) => x.id === activeGroupId)?.title ??
+                        "Grupo"}
                     </div>
                     <div className="ml-auto text-sm text-[var(--muted)]">
-                      {(inv.groups.find((x) => x.id === activeGroupId)?.items.length ?? 0)} ítems
+                      {inv.groups.find((x) => x.id === activeGroupId)?.items
+                        .length ?? 0}{" "}
+                      ítems
                     </div>
                   </div>
                 </Card>
               ) : null}
             </DragOverlay>
           </DndContext>
-        )}    
-
-
+        )}
 
         {/* Totals + quick tax */}
         {hasItems && (
@@ -504,7 +661,8 @@ Luces 1 x 500`}
               SUBTOTAL: <strong>Q {subtotal.toFixed(2)}</strong>
             </div>
             <div className="text-right">
-              IMPUESTOS ({(inv.tax.rate * 100).toFixed(0)}%): <strong>Q {tax.toFixed(2)}</strong>
+              IMPUESTOS ({(inv.tax.rate * 100).toFixed(0)}%):{" "}
+              <strong>Q {tax.toFixed(2)}</strong>
             </div>
             <div className="text-right text-lg">
               TOTAL: <strong>Q {total.toFixed(2)}</strong>
@@ -532,7 +690,9 @@ Luces 1 x 500`}
                 <button
                   type="button"
                   className="text-xs underline"
-                  onClick={() => setInv(v => ({ ...v, terms: DEFAULT_TERMS }))}
+                  onClick={() =>
+                    setInv((v) => ({ ...v, terms: DEFAULT_TERMS }))
+                  }
                 >
                   Usar términos estándar
                 </button>
@@ -541,7 +701,9 @@ Luces 1 x 500`}
                 className="w-full border rounded p-3 min-h-[140px]"
                 placeholder="Puedes escribir párrafos o bullets (líneas que empiecen con - o •)."
                 value={inv.terms ?? ""}
-                onChange={(e) => setInv((v) => ({ ...v, terms: e.target.value }))}
+                onChange={(e) =>
+                  setInv((v) => ({ ...v, terms: e.target.value }))
+                }
               />
             </Field>
 
@@ -551,7 +713,9 @@ Luces 1 x 500`}
                 className="w-full border rounded p-3 min-h-[100px]"
                 placeholder="Notas libres para esta factura..."
                 value={inv.notes ?? ""}
-                onChange={(e) => setInv((v) => ({ ...v, notes: e.target.value }))}
+                onChange={(e) =>
+                  setInv((v) => ({ ...v, notes: e.target.value }))
+                }
               />
             </Field>
 
@@ -569,7 +733,12 @@ Luces 1 x 500`}
                       bank: {
                         ...v.bank,
                         gtq: {
-                          ...(v.bank?.gtq ?? { bank: "", type: "", account: "", name: "" }),
+                          ...(v.bank?.gtq ?? {
+                            bank: "",
+                            type: "",
+                            account: "",
+                            name: "",
+                          }),
                           bank: e.target.value,
                         },
                       },
@@ -586,7 +755,12 @@ Luces 1 x 500`}
                       bank: {
                         ...v.bank,
                         gtq: {
-                          ...(v.bank?.gtq ?? { bank: "", type: "", account: "", name: "" }),
+                          ...(v.bank?.gtq ?? {
+                            bank: "",
+                            type: "",
+                            account: "",
+                            name: "",
+                          }),
                           type: e.target.value,
                         },
                       },
@@ -603,7 +777,12 @@ Luces 1 x 500`}
                       bank: {
                         ...v.bank,
                         gtq: {
-                          ...(v.bank?.gtq ?? { bank: "", type: "", account: "", name: "" }),
+                          ...(v.bank?.gtq ?? {
+                            bank: "",
+                            type: "",
+                            account: "",
+                            name: "",
+                          }),
                           account: e.target.value,
                         },
                       },
@@ -620,7 +799,12 @@ Luces 1 x 500`}
                       bank: {
                         ...v.bank,
                         gtq: {
-                          ...(v.bank?.gtq ?? { bank: "", type: "", account: "", name: "" }),
+                          ...(v.bank?.gtq ?? {
+                            bank: "",
+                            type: "",
+                            account: "",
+                            name: "",
+                          }),
                           name: e.target.value,
                         },
                       },
@@ -641,7 +825,12 @@ Luces 1 x 500`}
                       bank: {
                         ...v.bank,
                         usd: {
-                          ...(v.bank?.usd ?? { bank: "", type: "", account: "", name: "" }),
+                          ...(v.bank?.usd ?? {
+                            bank: "",
+                            type: "",
+                            account: "",
+                            name: "",
+                          }),
                           bank: e.target.value,
                         },
                       },
@@ -658,7 +847,12 @@ Luces 1 x 500`}
                       bank: {
                         ...v.bank,
                         usd: {
-                          ...(v.bank?.usd ?? { bank: "", type: "", account: "", name: "" }),
+                          ...(v.bank?.usd ?? {
+                            bank: "",
+                            type: "",
+                            account: "",
+                            name: "",
+                          }),
                           type: e.target.value,
                         },
                       },
@@ -675,7 +869,12 @@ Luces 1 x 500`}
                       bank: {
                         ...v.bank,
                         usd: {
-                          ...(v.bank?.usd ?? { bank: "", type: "", account: "", name: "" }),
+                          ...(v.bank?.usd ?? {
+                            bank: "",
+                            type: "",
+                            account: "",
+                            name: "",
+                          }),
                           account: e.target.value,
                         },
                       },
@@ -692,7 +891,12 @@ Luces 1 x 500`}
                       bank: {
                         ...v.bank,
                         usd: {
-                          ...(v.bank?.usd ?? { bank: "", type: "", account: "", name: "" }),
+                          ...(v.bank?.usd ?? {
+                            bank: "",
+                            type: "",
+                            account: "",
+                            name: "",
+                          }),
                           name: e.target.value,
                         },
                       },
@@ -703,20 +907,26 @@ Luces 1 x 500`}
             </div>
           </Card>
         </Collapsible>
-
       </div>
 
       {/* Sticky action bar */}
       <div className="fixed inset-x-0 bottom-0 z-20 bg-white border-t border-neutral-200">
         <div className="mx-auto max-w-3xl px-3 py-2 flex items-center gap-2">
-          <Link href="/app" className="border rounded px-3 py-2">Listo</Link>
+          <Link href="/app" className="border rounded px-3 py-2">
+            Listo
+          </Link>
           {invoiceId && (
-            <button onClick={saveNow} className="text-xs underline opacity-80 hover:opacity-100">
+            <button
+              onClick={saveNow}
+              className="text-xs underline opacity-80 hover:opacity-100"
+            >
               Guardar ahora
             </button>
           )}
           <div className="ml-auto flex gap-2">
-            <Button variant="secondary" onClick={handlePreview}>Vista previa</Button>
+            <Button variant="secondary" onClick={handlePreview}>
+              Vista previa
+            </Button>
             <Button onClick={handleDownload}>Descargar</Button>
           </div>
         </div>

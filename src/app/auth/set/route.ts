@@ -32,14 +32,14 @@ export async function POST(req: Request) {
             name: string;
             value: string;
             options: Parameters<typeof cookieStore.set>[2];
-          }[]
+          }[],
         ) => {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options);
           });
         },
       },
-    }
+    },
   );
 
   if (body.access_token && body.refresh_token) {

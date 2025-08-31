@@ -10,7 +10,9 @@ export default function DeleteInvoiceButton({ id }: { id: string }) {
     <button
       onClick={() =>
         start(async () => {
-          const ok = confirm("¿Eliminar esta factura? Esta acción no se puede deshacer.");
+          const ok = confirm(
+            "¿Eliminar esta factura? Esta acción no se puede deshacer.",
+          );
           if (!ok) return;
           const res = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
           if (res.ok) router.refresh();
