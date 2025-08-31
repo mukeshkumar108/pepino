@@ -911,7 +911,7 @@ Luces 1 x 500`}
 
       {/* Sticky action bar */}
       <div className="fixed inset-x-0 bottom-0 z-20 bg-white border-t border-neutral-200">
-        <div className="mx-auto max-w-3xl px-3 py-2 flex items-center gap-2">
+        <div className="mx-auto max-w-3xl w-full px-3 py-2 flex items-center gap-2 overflow-x-hidden">
           <Link href="/app" className="border rounded px-3 py-2">
             Listo
           </Link>

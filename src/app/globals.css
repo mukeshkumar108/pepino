@@ -49,7 +49,26 @@
 /* Fill page */
 html,
 body {
+  width: 100%;
+  max-width: 100%;
   height: 100%;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  touch-action: pan-y;
+  overscroll-behavior-x: contain;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+img, svg, canvas, video {
+  max-width: 100%;
+  height: auto;
+  display: block;
 }
 
 /* Soft top glow */
